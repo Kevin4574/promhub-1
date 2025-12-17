@@ -2,31 +2,57 @@
 
 
 ## 0) Scope & Tech Baseline
-
-* **Framework**: React + **Plasmo** (MV3)
-* **Styling**: **TailwindCSS**（集中 tokens；仅用语义类/变量，不随手 px）
-* **Surfaces**: 
-* content script：FAB 小球、Extension Panel（Home/Find/C-0）、E-0 Notepad（覆盖层）、E-1 放大编辑（覆盖层）、C-1 快速保存卡片（覆盖层）。
-     * E-0/E-1/C-1 采用页面内覆盖层（Overlay），不新开浏览器窗口。
-   * popup：Auth 三态（U-0 未登录 / A-0 登录中 / U-1 已登录）。
-* background：扩展的后台总管/服务端，负责注册右键菜单（空白仅“Notepad”；选中文本有“Notepad/快速保存”）
-* **Shell**: 统一外壳（BrandBar / Content / FooterBar / Tabbar），Popup 与 CS 复用；BrandBar 右侧提供关闭按钮（X），行为与 ESC/遮罩关闭一致
-* **Data & Backend**: v1 本地 Mock + API 预留；v1.1 对接 Python 后端（职责：Auth/CRUD/Sync/Market）。埋点仅本地记录（不出网）。
-* **API Contract（预留）**: REST/JSON（或 GraphQL 视后端定）
-  * Auth：登录/注销/状态（Mock → Token 制，JWT/Session 待定）
-  * Prompts：列表/查询/保存/更新/删除（含库/收藏）
-  * Favorites：收藏/取消收藏、列表
-  * Market：列表/查询（只读）
-  * Sync：拉取/推送（本地优先渲染）；冲突＝Server wins（按更新时间戳）；恢复在线后后台自动同步（静默）。
+* **总结**：扩展（React + Plasmo + Tailwind）和 webapp（React + Next + Tailwind）和 backend（Python + Fastapi + JWT + PostgreSQL）
+* **范围（Scope）**：单一代码库（monorepo）承载三部分：Extension（Chrome MV3）、Webapp（Next.js）、Backend（FastAPI）。目标 v1 即直连后端（开发阶段允许本地 Mock 兜底）。埋点仅本地记录（不出网）。
+* **前端 · Extension（浏览器扩展 ）**
+  * 包含内容 = content script（右侧挤压式面板 + prompt 市场 + FAB）、popup（账户状态/登录按钮，登录/注册通过 WebAuthFlow 打开 WebApp）、background（右键/快捷键/发起 WebAuthFlow）；
+  * **Framework**: React + **Plasmo** (MV3)
+  * **Styling**: **TailwindCSS**（集中 tokens；仅用语义类/变量，不随手 px）
+  * **Surfaces**:
+    * content script：右侧“挤压式” Extension Panel（不遮挡网页，高度铺满；Home/Find/C-0）、可见性强的 FAB、小窗式覆盖层（E-0/E-1/C-1）
+    * E-0/E-1/C-1 采用页面内覆盖层（Overlay），不新开浏览器窗口
+    * popup：Auth 二状态（U-0 未登录 / U-1 已登录）
+  * **background**：快捷键（唤起 Notepad 等）、右键菜单（空白仅“Notepad”；选中文本“Notepad/快速保存”）、消息桥、发起 WebAuthFlow（打开 Webapp 登录/注册小窗）
+  * **Shell**：统一外壳（BrandBar / Content / FooterBar / Tabbar），Popup 与 CS 复用；BrandBar 右侧提供关闭按钮（X），行为与 ESC/遮罩关闭一致
+  * **Storage（Extension）**：`chrome.storage.local`
+    * `pm.prompts`（库）、`pm.favorites`（收藏引用）、`pm.settings`（开关/分类等）、`pm.notepadDraft`（E-0 全局草稿）、`pm.fabPosition`（全局小球位置）、`pm.auth`（会话标记）
+  * **Permissions（MV3）**：`storage`、`contextMenus`、`clipboardWrite`、`scripting`、`activeTab`（最小权限原则）
+  * **Offline**：本地优先；Find 离线降级为占位提示；恢复在线后后台自动同步（无显式提示）。Edge：在“边界/异常”中移除“一键同步”提示。Find 离线 → 展示占位，不触发网络；Home/库可全功能；恢复在线后静默补齐市场数据。
+* **前端 · Webapp**
+  * 包含内容 = 官网 + blog（ISR/SSG） + extension 的大屏网页版核心面板（CSR） + auth 登录/注册小页；
+  * **Framework**：React + **Next.js** + **Tailwind**
+  * **Pages/功能**：
+    * Homepage（SSG/ISR）：产品介绍/功能说明
+    * Blog（SSG/ISR）：团队教程/更新/Prompt 内容（md/mdx，前台只读）
+    * Panel（CSR）：大屏版面板，在网页端还原 Extension 的 Home / Find / Save 核心能力（便于未安装扩展的用户使用）
+    * Auth 小页：用于 WebAuthFlow 登录/注册的小窗页面（邮箱+密码为主，邮箱验证码为辅）；成功后重定向回扩展
+  * **SEO/CSP**：禁用行内脚本；严格域白名单；与后端启用 CORS；不依赖第三方 Cookie（令牌基于 Bearer）
+* **后端（Backend）**
+  * 包含内容 = 核心：Auth（登录/鉴权/JWT）+ Data IO（Prompt CRUD + Market 只读）；配套：Security/CORS + DB/Config + Email（验证码） + Health（含 `/users/me` 基础身份查询）
+  * **Framework**：Python + **FastAPI** + **PyJWT**
+  * **数据库**：本地 SQLite（dev）/ 生产 PostgreSQL（建议）；ORM：SQLAlchemy/SQLModel；通用依赖注入 `get_db()`
+  * **模块**（高层级概览）：
+    * Auth：邮箱+密码登录、邮箱验证码登录、发送验证码、签发/校验 JWT
+    * Users：当前用户基础信息（`/users/me`）
+    * Prompts：我的 Prompt CRUD 与发布公开
+    * Market：公开 Prompt 的只读查询
+    * Security：密码哈希/鉴权、输入校验
+    * Email：验证码邮件与频控
+    * DB/Config：数据库连接、配置加载（`DATABASE_URL/JWT_SECRET/ALLOWED_ORIGINS/SMTP_*` 等）
+    * Health：服务健康检查
+  * **路由与版本**：统一前缀 `/api/v1`
+  * **CORS**：仅允许 Webapp 域名与 Extension ID 来源；最小化允许域和方法
+  * **安全**：密码哈希（bcrypt/argon2）、JWT HS256（默认有效期 7d，可配置）、可选刷新机制、验证码过期与节流、输入校验与输出转义
+* **WebAuthBridge（Extension ↔ Webapp · PostMessage）**
+* popup 点击“登录/注册” → 由扩展 popup 直接调用 `startAuthFlow(mode)`，通过 `window.open` 打开 WebApp Auth 小窗（`/auth/login`、`/auth/register`），统一附带 `client=extension&mode=login|register&relay=postmessage&relay_origin=<popup_origin>&state=<随机串>` 等参数
+* WebApp 登录/注册成功 → 在小窗内根据 query 中的 `relay=postmessage`、`relay_origin`、`state` 等信息构造统一格式的 `AuthSession` 对象（`email/accessToken/refreshToken/tier/count/...`），通过 `postMessage` 发送 `{ type: "pm:auth:bridge", ok: true, state, session }` 给 opener（扩展 popup），由扩展校验 `origin` 与 `state` 后写入本地存储
+* 扩展侧使用 `chrome.storage.local` 承载 `pm.auth.session`，并通过 `getSession/saveSession/subscribeSession` 进行读取与订阅；popup 基于订阅结果在 U-0/U-1 之间切换，后续请求以 `Authorization: Bearer <access_token>` 调用后端（refresh token 预留后续使用）
+* 若中途失败/关闭 → WebApp 通过 `postMessage` 回传 `{ ok: false, error }` 或扩展在超时/小窗关闭时兜底提示；保持 U-0，可重试
+* **Sync**：本地优先渲染；恢复在线后后台自动同步（静默）；冲突＝Server wins（按更新时间戳）
 * **A11y**: 焦点管理、`role`/`aria-*` 与 reduced-motion 口径固定；DOM `id` 必须唯一；Tabbar 使用 `role=tablist`/`role=tab` + `aria-selected`（不使用 `aria-pressed`）；非激活项指针样式为 `cursor: pointer`，激活项为默认指针
 * **Pixels**: **必须一致**（±0px 容忍）；动效口径固定（fast 150ms / normal 240ms）；下拉组件在固定面板尺寸内自适应翻转/收缩避免与底部 Tabbar 重叠
 * **Browsers**: Chrome 120+（MV3），Edge 同步；Firefox 暂缓（后评估 polyfill）
-
-* **Storage（Extension）**: `chrome.storage.local`
-  * `pm.prompts`（库）、`pm.favorites`（收藏引用）、`pm.settings`（开关/分类等）、`pm.notepadDraft`（E-0 全局草稿）、`pm.fabPosition`（全局小球位置）、`pm.auth`（会话标记）
-* **Permissions（MV3）**: `storage`、`contextMenus`、`clipboardWrite`、`scripting`、`activeTab`（最小权限原则）
-* **Offline**: 本地优先；Find 离线降级为占位提示；恢复在线后后台自动同步（无显式提示）。Edge：在“边界/异常”中移除“一键同步”提示。Find 离线 → 展示占位，不触发网络；Home/库可全功能；恢复在线后静默补齐市场数据。
-* **Security/CSP**: 禁止 `eval`/行内脚本；仅可信域名；输入内容转义/去危险 HTML；最小权限
+* **Security/CSP**: 禁止 `eval`/行内脚本；仅可信域名；输入内容转义/去危险 HTML；最小权限；后端启用严格 CORS（仅 Webapp 域与 Extension ID）
 * **Performance**: 打开面板首帧 ≤ 150ms（典型机器）；列表 ≥ 30 条时启用虚拟滚动；交互反馈 ≤ 100ms
 * **i18n**: 初期固定 zh-CN；文案集中管理，后续可抽取为 tokens
 
@@ -52,19 +78,20 @@
 4. **E-1 放大编辑（页面内覆盖层窗口）**
  * 字段级放大编辑：出现在多行文本字段旁（如 C-0 正文/System Message、C-1 正文）；仅“完成/取消”两动作，完成回填原字段
 
-5. **Auth（三态）**
+5. **Auth（Extension Popup + WebApp）**
 
-  * **U-0：未登录状态**（面板内状态视图：引导登录/注册）
-  * **A-0：注册**（用户名+邮箱+密码+密码确认）
-  * **A-0：登录**（仅邮箱+密码；无第三方登录）
-  * **U-1：已登录状态**（面板内状态视图：账号信息/统计数据/Prompt 存储/启用浮动按钮/注销）
-   
+  * **U-0：未登录状态（popup）**：展示账号状态/本地限制，提供“登录/注册”按钮触发 WebAuthFlow。
+  * **U-1：已登录状态（popup）**：展示账号信息、统计数据、Prompt 存储状态、FAB 开关与注销按钮。
+  * **WebApp · Login**：`/auth/login` 小窗登录页（邮箱+密码，基础校验；成功后重定向到 `chrome.identity.getRedirectURL()`）。
+  * **WebApp · Register**：`/auth/register` 小窗注册页（用户名+邮箱+密码+确认；成功后重定向或引导跳转登录页）。
 5. **FAB 悬浮小球（pm-fab）**
 
    * 单击开 Panel；拖动仅移动；吸附边界
 
 
 #### 各页面内容与功能（FR）
+
+##### Extension部分
 
 — Extension Panel · Home（我的）
 - FR-HOME-001：搜索库/收藏，范围含标题/正文/System Message，回车触发筛选（Home 与 Find 一致）。
@@ -157,21 +184,7 @@
 - FR-U0-005：辅助操作：打开 WebApp；版本号显示。
 - FR-U0-006：埋点：展示、点击登录、开关 FAB、打开 WebApp 等。
  - FR-U0-007：入口与定位：通过浏览器地址栏旁扩展图标进入，视图锚定于该入口位置，不支持拖动。
-
-— Auth · A-0 登录
-- FR-A0-LOGIN-001：登录页字段：邮箱、密码；主按钮“立即登录”。
-- FR-A0-LOGIN-002：底部文案：“我们的 服务条款 和 隐私政策”。
-- FR-A0-LOGIN-003：移除“使用验证码登录”与第三方登录入口。
- - FR-A0-LOGIN-004：提交成功 → 切换到 U-1（已登录）并显示“登录成功，正在同步”。
- - FR-A0-LOGIN-005：返回入口；埋点：进入、提交、返回等。
-
-— Auth · A-0 注册
-- FR-A0-REGISTER-001：注册页字段：用户名、邮箱、密码（至少6位，占位符提示）、确认密码；主按钮“立即注册”。
-- FR-A0-REGISTER-002：底部文案：“注册即表示您同意我们的 服务条款 和 隐私政策”。
-- FR-A0-REGISTER-003：底部提供“已有账户？立即登入”文字按钮（主色文字，可点击）。
- - FR-A0-REGISTER-004：提交成功 → 切换到登录页。
- - FR-A0-REGISTER-005：返回入口；埋点：进入、提交、返回等。
- - FR-A0-ENTRY-001：入口与定位：通过浏览器地址栏旁扩展图标进入，视图锚定于该入口位置，不支持拖动。
+ - FR-U0-008：点击“立即登录/立即注册”时调用 background WebAuthFlow，流程进行中需禁用按钮并展示加载态。
 
 — Auth · U-1 已登录状态
 - FR-U1-001：展示用户信息（用户名/邮箱/加入于日期）；布局：标签在左（图标在标签左侧）、值在右。
@@ -183,8 +196,8 @@
 
 — FAB 悬浮小球（pm-fab）
  - FR-FAB-001：单击打开面板；拖动仅移动位置。
- - FR-FAB-002：位置全局记忆；跨站点一致。存储坐标按 viewport 百分比（相对定位），跨分辨率/缩放能复现相对位置。
- - FR-FAB-003：出屏吸附：在窗口尺寸变化/越界时，自动吸附最近可见边；最小边距 12px；吸附触发阈值为距离边界 ≤ 24px。
+ - FR-FAB-002：位置全局记忆；跨站点一致。存储模式=自由/贴边 + 边向偏移，视口变化时可还原（兼容分辨率变化）。
+ - FR-FAB-003：吸附：拖动松手后仅当距离某边 ≤ 24px 时贴边；贴边外侧零边距；否则保持自由态停放原位（保留 12px 安全边距）。窗口尺寸变化/越界时自动夹紧/贴边。
  - FR-FAB-004：不支持快捷键（本期）。
  - FR-FAB-005：埋点：展示、拖动、点击打开。
 
@@ -194,6 +207,29 @@
 - FR-CM-003：“快速保存”预填正文为选中文本；标题可空。
 - FR-CM-004：“Notepad”预填为选中文本（若有），否则加载全局 Notepad 草稿内容。
 - FR-CM-005：埋点：展示、点击项、保存行为。
+
+##### webapp 部分
+
+— WebApp Auth · Login（/auth/login）
+- FR-AUTH-LOGIN-001：字段：邮箱；模式切换：密码登录 / 邮箱验证码登录（二选一）。密码登录需密码≥6位；验证码登录需输入邮箱验证码（含发送/重发入口）。
+- FR-AUTH-LOGIN-002：底部文案：“我们的 服务条款 和 隐私政策”。
+- FR-AUTH-LOGIN-003：不提供第三方登录；忘记密码可直接使用验证码登录，无单独“重置密码”页。
+- FR-AUTH-LOGIN-004：提交成功 → 根据 `redirect_uri` 重定向至 `https://<extensionId>.chromiumapp.org/...#access_token=...&refresh_token=...&session=<base64>（附带 state）`；Chrome 自动关闭小窗。
+- FR-AUTH-LOGIN-005：埋点：进入、模式切换、校验失败、提交成功/失败、关闭窗口、验证码发送/重发结果。
+
+— WebApp Auth · Register（/auth/register）
+- FR-AUTH-REGISTER-001：字段：邮箱；模式切换：密码注册 / 邮箱验证码注册（二选一）。密码注册需密码≥6位并确认；验证码注册仅需邮箱+验证码，不再要求用户名。
+- FR-AUTH-REGISTER-002：底部文案：“注册即表示您同意我们的 服务条款 和 隐私政策”。
+- FR-AUTH-REGISTER-003：底部提供“已有账户？立即登入”文字按钮（主色文字，可点击）。
+- FR-AUTH-REGISTER-004：注册成功 → 生成同结构 session（mode=register），按登录流程重定向；必要时提示“已创建账号，正在跳转登录”。
+- FR-AUTH-REGISTER-005：埋点：进入、模式切换、字段错误、验证码发送/重发结果、提交结果、切换到登录页。
+
+（WebApp Auth 仅保留 Login/Register，小窗入口统一由扩展 popup 触发）
+
+
+##### backend部分
+
+
 
 ## 1) 产品概要（What & Why）
 
@@ -206,24 +242,24 @@
 本节以“入口 → 承载形态 → 窗口间切换与层级”为主线，集中定义每个窗口/卡片的出现位置与相互流转（不覆盖功能细节，详见 FR）。
 
 ### 2.1 入口总览
-- 浏览器 popup（固定锚定扩展图标位置）：承载 Auth 三态（U-0 未登录 / A-0 登录注册 / U-1 已登录），三者在同一 popup 窗口内切换。
+- 浏览器 popup（固定锚定扩展图标位置）：承载 Auth 状态视图（U-0 未登录 / U-1 已登录），在同一 popup 内切换，并提供 WebAuthFlow 登录/注册入口。
 - content script 覆盖层：FAB 小球、Extension Panel（Home/Find/C-0）、E-0 Notepad、E-1 放大编辑、C-1 快速保存卡片。
 - background 右键菜单：注册“快速保存 Prompt”“Notepad”两项，用于在页面上唤起 C-1 或 E-0 覆盖层。
 
 ### 2.2 浏览器 popup（Auth）
 - 位置与承载：固定锚定于浏览器扩展图标处的 popup；不可拖动。
 - 首次进入：显示 U-0（未登录）。
-- 切换路径：
-  * U-0 →（点击“登录/注册”）→ A-0（登录页）
-  * A-0（登录成功）→ U-1（已登录）
-  * 登录页底部“没有账户？立即注册”→ A-0（注册页）
-  * 注册页底部“已有账户？立即登入”→ A-0（登录页）
-  * U-1（点击“注销登录”）→ U-0（未登录）
-- 返回：A-0 提供“返回入口”。
+- WebAuthFlow 流程：
+  * U-0 点击“立即登录/立即注册” → popup 发送 `pm:auth:start` 给 background，禁用按钮并打开 WebApp 小窗（登录/注册）。
+  * WebApp 完成登录/注册 → 重定向携带 access_token/refresh_token/session；background 校验 `state`、写入 `pm.auth.session`。
+  * popup 通过订阅感知会话更新 → 自动切换到 U-1，并短暂展示“登录成功，数据同步中”提示。
+  * U-1 点击“注销登录” → 清空 `pm.auth.session`，回到 U-0。
+- 异常处理：WebAuthFlow 途中关闭/失败时，background 返回错误并解除按钮禁用；popup 维持 U-0，可再次触发。
 
 ### 2.3 content script（FAB → Extension Panel）
 - FAB：安装后默认出现在页面右下；可拖拽移动，位置全局记忆，出屏自动吸附；单击打开 Extension Panel。
 - 打开落点：Extension Panel 首次打开落在 Home。
+- 面板呈现（布局行为）：每次打开以一套相对克制的默认起始宽度出现（不记忆上一次拖拽结果），在视口宽度充足时优先以“右侧挤压”的方式为面板让出一条固定列工作区；当窗口本身较窄或继续挤压会让宿主页面宽度跌破安全阈值、明显影响阅读体验时，更倾向于自动切换为“覆盖模式”，把面板作为悬浮工作区盖在原页面之上，关闭后宿主页面恢复原状。
 - Home 内典型流转：
   * 顶部“+新建” → 进入 C-0（保存/编辑）
   * 列表项“编辑” → 进入 C-0（编辑已有）
@@ -265,15 +301,18 @@
 
 #### 各页面布局与尺寸
 
-本节仅描述“布局结构”与“关键尺寸”，不涉及交互/逻辑（详见 FR）。统一遵循以下基线（参考 `ui4-static.html`）：
+本节仅描述“布局结构”与“关键尺寸”，不涉及交互/逻辑（详见 FR）。统一遵循以下基线（参考 `原型图/` folder中设计）：
 
 - 宽度基线：`--pm-width = clamp(300px, 19.56vw, 440px)`（最大 440px）
+- Extension Panel 专用宽度：`--pm-panel-width`（最小约 480px，最大约 1200px，右侧贴边，参考 `extension-panel.html` 的挤压式布局）
 - 圆角：`--pm-radius = 12px`；阴影：`--pm-shadow`（中等级）
 - 面板高度：680px；滚动条视觉宽度约 6px
 
 — 统一规范（全局）
 - 三段式骨架：除提示模态外，所有页面/卡片窗口均采用`BrandBar（头部） → Main（主体） → Footer（底部 Tabbar）`。Tabbar 仅在面板视图显示。
-- 覆盖层呈现：所有卡片窗口（Extension Panel、C-0、C-1、E-0、E-1）均以浏览器页面覆盖层呈现，宽度遵循 `--pm-width`，内容区内部滚动，避免出屏。
+- 呈现方式：
+  - Extension Panel：作为页面右侧**挤压式固定列**存在，贴右侧，从屏幕右边缘滑入/滑出；高度铺满可视区域，宽度使用 `--pm-panel-width`，打开时宿主页面整体向左“让出”一列空间。
+  - C-0 / C-1 / E-0 / E-1：作为浏览器页面内的覆盖层窗口，宽度遵循 `--pm-width`，内容区内部滚动，避免出屏，与 Extension Panel 在圆角/阴影/排版上保持统一视觉基线。
 - BrandBar 家族：统一使用 `#panel-brand-bar`（`px-3 py-2`，底部细分割线）。左侧为 32×32px 渐变圆徽 + 标题/副标题，右侧关闭按钮 28×28px。不同页面仅更换图标与文案。
 - 按钮统一：高度 36px（h-9），圆角 8–12px；同一套样式族在各页面复用，仅文字/颜色/宽度不同。
 - 输入/选择/分段统一：高度 36px；分段控件整体高 36px，圆角与滑块风格与家族一致。
@@ -288,7 +327,8 @@
   * Main：搜索行（左搜索输入，右“新建”按钮）→（按需）分段控件/分类下拉/常用区 → 列表区 → 分页条
   * Footer：底部 Tabbar（Home / Find）
 - 关键尺寸：
-  * 宽度：`--pm-width`；圆角：`--pm-radius`；阴影：`--pm-shadow`
+  * 宽度：`--pm-panel-width`（右侧固定列，最小约 480px，最大约 1200px）；每次打开以一套相对克制的默认起始宽度出现（不记忆上次拖拽），用户通过面板左缘约 8–12px 的竖向拖拽条在该范围内调宽；圆角：`--pm-radius`；阴影：`--pm-shadow`
+  * 右侧挤压与覆盖：在视口宽度充足且宿主内容仍能保持安全最小宽度时，面板贴右侧并通过挤压方式让宿主页面整体向左偏移；当窗口本身较窄或继续挤压会让宿主宽度跌破安全阈值、明显破坏阅读体验时，自动切换为覆盖模式，将面板作为悬浮工作区盖在原页面之上；关闭时无论哪种模式，宿主页面均恢复满宽。
   * BrandBar 内边距 8×12px；图标 18px；关闭按钮 28×28px
   * 搜索/按钮/分段/下拉：统一 36px 高
   * 列表区纵向滚动；滚动条宽约 6px
@@ -323,55 +363,109 @@
 - 布局结构：BrandBar → 主体卡片区（账号状态卡 → 限制说明卡 → 存储进度行 → 设置行（开关）→ 辅助链接行）→ 底部版本信息。
 - 关键尺寸：与面板同宽基线；进度条约 10px 高；开关约 44×24px；卡片内边距 12px；行距 8–12px。
 
-— Auth · A-0（浏览器 popup）
-- 登录页布局：顶部 Logo 圆徽 → 欢迎标题/说明 → 表单区（邮箱/密码 2 行）→ 主按钮 → 辅助说明/返回。
-- 注册页布局：顶部 Logo 圆徽 → 标题/说明 → 表单区（用户名/邮箱/密码/确认密码 4 行）→ 主按钮 → 辅助说明（含“已有账户？立即登入”文字按钮）。
-- 关键尺寸：Logo 48×48px；输入/按钮 36px 高；左右内边距 12px；区块间距 12–16px。
+— Auth · WebApp Login（WebAuthFlow 小窗）
+- 布局：顶部 Logo 圆徽（48×48）→ 欢迎标题/说明 → 表单区（邮箱/密码 2 行）→ 主按钮 → 辅助说明（服务条款/隐私）。
+- 关键尺寸：输入/按钮 36px 高；左右内边距 24px；竖向间距 12–16px；整体卡片宽度随 `--pm-width`。
+
+— Auth · WebApp Register（WebAuthFlow 小窗）
+- 布局：顶部 Logo 圆徽 → 标题/说明 → 表单区（用户名/邮箱/密码/确认密码 4 行）→ 主按钮 → 辅助说明（含“已有账户？立即登入”文字按钮）。
+- 关键尺寸：同登录页；多字段时上下间距保持 12px，说明文字 13px。
 
 — Auth · U-1 已登录状态（浏览器 popup）
 - 布局结构：BrandBar → 主体卡片区（账号信息卡 → 统计数据卡 → 存储展示行 → 设置行（开关）→ 辅助操作行）。
 - 关键尺寸：与 U-0 一致；开关 44×24px；卡片内边距 12px；行距 8–12px。
 
 — FAB 悬浮小球（pm-fab）
-- 布局结构：位于页面内容之上的圆形可拖拽按钮，默认停靠右下角。
-- 关键尺寸：直径 52px；默认距边 16px；最小可见留白 ≥ 12px；点击热区与视觉一致。
+- 布局结构：位于页面内容之上的圆形可拖拽按钮，默认停靠右下角；靠边时切换为贴边胶囊形态（左右贴边外侧收口，宽约 60px，高 44px）。
+- 关键尺寸：自由态直径 44px，安全边距 12px；贴边态宽 60px、高 44px，外侧零边距；点击热区与视觉一致。
 
 
-## 5) 目录架构（前端 - extension部分）— PM 可读版
+## 5) 目录架构
 
-promptman/
-├── .plasmo                     # 工具生成的中间产物与模板（自动生成，不计入“启用源码”，不展开）
-├── assets                      # 图标等静态资源（手动维护，不展开）
-├── build                       # 构建产物输出（自动生成，不展开）
-├── node_modules                # 依赖目录（自动生成，不展开）
-├── .gitkeep                    # 空目录占位文件（手动维护，不展开；用于保留目录结构）
-├── .postcssrc                  # PostCSS 配置 
-├── package-lock.json           # 依赖锁定文件（npm 自动生成，不展开；建议纳入版本控制，不手动编辑）
-├── package.json                # 工程脚本与 Plasmo manifest 配置出口 
-├── tailwind.config.ts          # Tailwind 定制 
-├── tsconfig.json               # TS 编译与类型规则来源
-└─ src/                         # 核心代码目录
-   ├─ styles/                   # 全局样式与设计
-   ├─ libs/                     # 可以复用的工具代码
-   ├─ services/                 # 存储，缓存和后端端api服务
-   ├─ components/               # 可以复用的UI组件
-   │  ├─ ui/                    # 全局 通用 UI 组件
-   │  │  ├─ Toggle.tsx          # 开关控件。 位置：U-0 启用浮动按钮
-   │  │  ├─ ProgressBar.tsx     # 进度条。 位置：U-0 进度条
-   │  │  ├─ TextArea.tsx        # 多行输入。 位置：C-1/C-0/E-0/E-1
-   │  │  ├─ Select.tsx          # 分类选择框。位置：Extension Panel、C-1、C-0
-   │  │  ├─ Button.tsx          # 通用按钮模板（风格/大小/图标/加载/禁用）。位置：Extension “+新建”、C-0/C-1、E-0/E-1、U-0、A-0 等
-   │  │  └─ Input.tsx           # 通用输入模板（占位/聚焦/出错）。位置：A-0 邮箱/密码、C-0/C-1 标题等
-   │  └─ panel/                 # extension panel 专用 ui 组件
-   │     ├─ PanelSearchBar.tsx  # 搜索框
-   │     ├─ Segmented.tsx       # 库/收藏分段切换控件
-   │     ├─ Pagination.tsx      # 分页组件
-   │     └─ Tabbar.tsx          # 底部 Tab（Home/Find）切页栏
-   ├─ features/                 # 具体页面/窗口的视图
-   │  ├─ auth/                  # popup：U-0/U-1/A-0
-   │  ├─ panel/                 # content-script：Home / Find / C-0（复用 PanelShell）
-   │  ├─ QuickSaveCard.tsx            
-   │  └─ EditorE0.tsx                
-   ├─ background/                # 这是扩展的后台总管，没有他我们右键就不会有任何显示就无法进入e-0和快捷保存。
-   ├─ popup/                     # 三态（U-0 未登录 / A-0 登录中 / U-1 已登录）的注入入口。没有它:工具栏入口就没法登录/注册/看状态。
-   └─ contents/                  # FAB 小球、Extension Panel（Home/Find/C-0）、E-0 放大编辑（覆盖层）、C-1 快速保存卡片（覆盖层）。的页面注入入口，如果没有他我们的FAB 小球、Extension Panel（Home/Find/C-0）、E-0 放大编辑（覆盖层）、C-1 快速保存卡片（覆盖层）。就不能在浏览器页面显示
+### 前端 - extension部分— PM 可读版
+
+E:\solo dev\prompt manna - nnn\P2 - Codex - 同步
+├── .git  [skipped]
+├── docs  [skipped]
+├── backend/  [还未启用]                            # 后端部分内容
+├── extension
+│   ├── .plasmo  [skipped]                          # 工具生成的中间产物与模板（自动生成，不计入“启用源码”，不展开）
+│   ├── assets  [skipped]                           # 图标等静态资源（手动维护，不展开）
+│   ├── build  [skipped]                            # 构建产物输出（自动生成，不展开）
+│   ├── node_modules  [skipped]                     # 依赖目录（自动生成，不展开）
+│   ├── src                                         # extension核心代码目录
+│   │   ├── libs/  [还未启用]                        # 可以复用的工具代码
+│   │   ├── background                              # 这是扩展的后台总管，负责右键菜单与消息桥接。
+│   │   │   └── index.ts                            # MV3 Service Worker 入口（右键菜单/消息桥接/Auth 预热）。已实现：安装/启动时创建菜单；选中文本右键“Notepad 占位/快速保存 占位”，空白处仅“Notepad 占位”；向页面广播消息兜底；在安装/启动时预热 WebAuth 相关页面（`warmupAuthOrigin`），以提升首登体验。
+│   │   ├── components                              # 可以复用的UI组件
+│   │   │   ├── panel                               # 为 extension panel 专用 ui 组件；
+│   │   │   │   ├── PanelSearchBar.tsx  [还未启用]   # 搜索框
+│   │   │   │   ├── Segmented.tsx  [还未启用]        # 库/收藏分段切换控件
+│   │   │   │   ├── Pagination.tsx  [还未启用]       # 分页组件
+│   │   │   │   ├── Tabbar.tsx  [还未启用]           # 底部 Tab（Home/Find）切页栏
+│   │   │   │   └── PanelShellPlaceholder.tsx                 # 为 Extension Panel 右侧挤压式壳层（BrandBar / Content / Footer）占位，供 Panel/C-0 复用。完成后点击 FAB 悬浮球，在页面右侧看到固定列的主面板壳，而不是居中的一坨文字。
+│   │   │   └── ui                                  # 新增：最小 UI 组件（必要，复用支撑四态）
+│   │   │       ├── Button.tsx                      # 统一按钮风格/尺寸/加载态（主按钮/次按钮）
+│   │   │       ├── Input.tsx                       # 文本输入（占位/出错态）封装
+│   │   │       ├── ProgressBar.tsx                 # 进度条，用于 U-0 本地存储占用展示
+│   │   │       ├── Select.tsx  [还未启用]           # 分类选择框。位置：Extension Panel、C-1、C-0
+│   │   │       ├── TextArea.tsx  [还未启用]         # 多行输入。 位置：C-1/C-0/E-0/E-1
+│   │   │       └── Toggle.tsx                      # 开关，用于 U-0/U-1 的 FAB 开关
+│   │   ├── contents                                # FAB 小球、右侧挤压式 Extension Panel（Home/Find/C-0）、E-0 放大编辑（覆盖层）、C-1 快速保存卡片（覆盖层）的页面注入入口；没有它们，我们的 FAB/面板/覆盖层卡片就不能在浏览器页面显示
+│   │   │   ├── fab.tsx                             # 为 FAB 悬浮球注入入口，完成后右下角出现一个圆形“FAB 占位”按钮（固定位置，无拖拽/吸附，后续版本支持拖拽与吸附）。
+│   │   │   ├── notepad-e0.tsx                      # 为 E-0 Notepad 覆盖层入口。选内容或空白处点击菜单项弹出 Notepad（E-0）窗口，内有“这是 Notepad 占位”字样，支持关闭；监听 runtime/window 消息开关
+│   │   │   ├── panel.tsx                           # 为 Extension Panel（Home/Find/C-0 共用壳）的注入入口。点击 FAB 悬浮球，在页面右侧滑出 Extension Panel（Home/Find/C-0 共用壳）挤压为主、必要时退回覆盖模式的侧边工作区面板列，内有占位文案如“Extension Panel（Home/Find/C-0）占位”，支持关闭与拖拽调宽。
+│   │   │   └── quick-save-c1.tsx                   # 为 C-1 Quick-Save 覆盖层入口。选内容点击菜单项弹出 Quick-Save（C-1）窗口，内有“这是快速保存占位”字样，支持关闭；监听 runtime/window 消息开关
+│   │   ├── features                                # 具体页面/窗口的视图
+│   │   │   ├── auth                                # popup 状态视图（U0/U1）与跨态逻辑容器
+│   │   │   │   ├── AuthRoot.tsx                    # 状态容器：读取/订阅 `pm.auth.session`，触发 WebAuthFlow，管理 FAB 设置
+│   │   │   │   ├── U0.tsx                          # 未登录视图（登录引导/本地限制/FAB 开关/版本/触发 WebAuthFlow）
+│   │   │   │   └── U1.tsx                          # 已登录视图（账户信息/同步提示/存储/FAB 开关/操作按钮）
+│   │   │   ├── panel/  [还未启用]                   # content-script：Home / Find / C-0（复用 PanelShell）
+│   │   │   ├── QuickSaveCard.tsx  [还未启用]        # C-1 快速保存卡片视图组件（配合 contents/quick-save-c1.tsx）
+│   │   │   └── EditorE0.tsx  [还未启用]             # E-0 Notepad 视图组件（配合 contents/notepad-e0.tsx）
+│   │   ├── popup                                   # popup 注入入口，只承载 U-0/U-1 状态视图。
+│   │   │   └── index.tsx                           # 挂载 `features/auth/AuthRoot`（必要，替换 Step 0 占位）
+│   │   ├── services                                # 存储、WebAuthBridge、后端接口占位
+│   │   │   ├── auth.ts                             # 会话模型（access token/refresh token/tier 等）、`getSession`/`saveSession`/`logout`/订阅封装
+│   │   │   ├── storage.ts                          # 封装 `chrome.storage.local`（get/set/subscribe），提供内存兜底以便开发/调试
+│   │   │   └── webauthflow.ts                      # popup 侧发起 WebAuthBridge：构造带有 `client/mode/relay/relay_origin/state` 的 WebApp Auth URL，通过 `window.open` 打开登录/注册小窗；监听来自 WebApp 的 `postMessage`（`type = "pm:auth:bridge"`），校验 `origin/state` 后调用 `saveSession` 持久化；在非扩展环境下回退为直接打开 WebApp。
+│   │   └── styles                                  # 全局样式与设计
+│   │       └── globals.css                         # 已实现全局与 Auth popup 样式（含 Tailwind 指令与设计 tokens）
+│   ├── .gitkeep                                    # 空目录占位文件（手动维护，不展开；用于保留目录结构）
+│   ├── .postcssrc                                  # PostCSS 配置（根级 JSON，替代 `config/postcss.config.cjs`）
+│   ├── fa-wand-magic-sparkles.json
+│   ├── package-lock.json                           # 依赖锁定文件（npm 自动生成，不展开；建议纳入版本控制，不手动编辑）
+│   ├── package.json                                # 工程脚本与 Plasmo manifest 配置出口（替代 `config/plasmo.config.ts`）
+│   ├── tailwind.config.ts                          # Tailwind 定制（根级，替代 `config/tailwind.config.ts`）
+│   └── tsconfig.json                               # TS 编译与类型规则来源
+├── task  [skipped]
+└── .gitignore                                      # Git 忽略规则
+
+
+
+### 前端 - webapp部分— PM 可读版
+
+webapp/                                       # WebApp（Next 14 + App Router）
+├── package.json                              # webapp 独立 package（Next/Tailwind 依赖、脚本）
+├── next.config.mjs                           # Next 配置（strict mode）
+├── postcss.config.js                         # Tailwind + autoprefixer
+├── tailwind.config.ts                        # Tailwind tokens（含 pm 设计变量）
+├── tsconfig.json / next-env.d.ts             # TS 配置
+└── src
+    ├── app
+    │   ├── layout.tsx                        # WebApp 根布局（全局字体/样式）
+    │   ├── globals.css                       # 全局样式（Auth 小页视觉基线 / tailwind 指令）
+    │   └── auth                              # WebAuthFlow 小窗页面集合
+    │       ├── layout.tsx                    # Auth 子布局：580px 小窗、模糊背景
+    │       ├── entry/page.tsx                # 入口页（在小窗中选择“登录/关闭”）
+    │       ├── login/page.tsx                # 登录页（邮箱+密码，Mock WebAuthFlow 成功 → redirect）
+    │       └── register/page.tsx             # 注册页（用户名/邮箱/密码，Mock WebAuthFlow 成功 → redirect/login）
+    └── lib
+        └── webauthflow.ts                    # WebAuthFlow 工具（拼接 relay query、mock session 哈希）
+
+### 后端 - backend部分— PM 可读版
+
+
+
+

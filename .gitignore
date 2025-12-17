@@ -1,0 +1,26 @@
+# deps & caches
+/extension/node_modules/
+/extension/.plasmo/
+/extension/build/
+/extension/dist/
+/extension/.next/
+/extension/.turbo/
+/docs
+/webapp/node_modules/
+
+# lockfile需提交（确保下面这些存在就行）
+!/extension/package-lock.json
+!/extension/pnpm-lock.yaml
+!/extension/yarn.lock
+
+# env & logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.env
+.env.*
+
+# editors & OS
+.vscode/
+.DS_Store
+Thumbs.db

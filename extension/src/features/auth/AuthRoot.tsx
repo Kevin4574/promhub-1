@@ -8,28 +8,28 @@
 	type MutableRefObject
 } from "react"
 
-import type { AuthSession, LoginPayload } from "../../services/auth"
-import { getSession, login, logout, subscribeSession } from "../../services/auth"
+import type { AuthSession } from "../../services/auth"
+import { getSession, logout, subscribeSession } from "../../services/auth"
 import { storageGet, storageKeys, storageSet, storageSubscribe } from "../../services/storage"
-import { A0 } from "./A0"
-import { A0Register, type RegisterPayload } from "./A0Register"
+import { startAuthFlow } from "../../services/webauthflow"
+import { warmupAuthOrigin } from "../../services/auth-warmup"
 import { U0 } from "./U0"
 import { U1 } from "./U1"
 
 const LOCAL_LIMIT = 30
 const DEFAULT_LOCAL_COUNT = 15
 const DEFAULT_SHOW_FAB = true
-const VERSION_LABEL = "v1.2.0 • Beta"
+const FALLBACK_PROMPT_COUNT = 128
+const FALLBACK_FAVORITE_COUNT = 34
 const SYNC_MESSAGE_DURATION = 2000
 
-type AuthView = "U0" | "A0_LOGIN" | "A0_REGISTER" | "U1"
+type AuthView = "U0" | "U1"
+type AuthLaunchStage = "idle" | "requesting"
 
 type LogPayload = Record<string, unknown>
 
 const viewEventMap: Record<AuthView, string> = {
 	U0: "auth.u0.view",
-	A0_LOGIN: "auth.a0_login.view",
-	A0_REGISTER: "auth.a0_register.view",
 	U1: "auth.u1.view"
 }
 
@@ -41,25 +41,15 @@ function logEvent(event: string, payload?: LogPayload) {
 	console.info(`[auth] ${event}`)
 }
 
-function formatLastSync(timestamp?: number): string {
+function formatDateOnly(timestamp?: number): string {
 	if (!timestamp) {
-		return "刚刚"
-	}
-	const now = Date.now()
-	const diff = now - timestamp
-	if (diff < 60_000) {
-		return "刚刚"
-	}
-	if (diff < 3_600_000) {
-		const minutes = Math.floor(diff / 60_000)
-		return `${minutes} 分钟前`
-	}
-	if (diff < 86_400_000) {
-		const hours = Math.floor(diff / 3_600_000)
-		return `${hours} 小时前`
+		return "--"
 	}
 	const date = new Date(timestamp)
-	return `${date.getFullYear()}-${`${date.getMonth() + 1}`.padStart(2, "0")}-${`${date.getDate()}`.padStart(2, "0")} ${`${date.getHours()}`.padStart(2, "0")}:${`${date.getMinutes()}`.padStart(2, "0")}`
+	const year = date.getFullYear()
+	const month = `${date.getMonth() + 1}`.padStart(2, "0")
+	const day = `${date.getDate()}`.padStart(2, "0")
+	return `${year}-${month}-${day}`
 }
 
 export function AuthRoot() {
@@ -69,16 +59,22 @@ export function AuthRoot() {
 	const [showFab, setShowFab] = useState<boolean>(DEFAULT_SHOW_FAB)
 	const [initialised, setInitialised] = useState(false)
 	const [isSyncing, setIsSyncing] = useState(false)
+	const [authLaunching, setAuthLaunching] = useState(false)
+	const [authError, setAuthError] = useState<string | null>(null)
+	const [authLaunchStage, setAuthLaunchStage] = useState<AuthLaunchStage>("idle")
 
 	const syncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 	const shellRef = useRef<HTMLDivElement | null>(null)
 	const requestResize = usePopupAutoResize(shellRef)
+	const prevSessionRef = useRef<AuthSession | null>(null)
+	const bootstrappedSessionRef = useRef(false)
 
 	useEffect(() => {
 		let cancelled = false
 
 		async function bootstrap() {
 			try {
+				void warmupAuthOrigin()
 				const [storedSession, storedShowFab, storedLocalCount] = await Promise.all([
 					getSession(),
 					storageGet<boolean>(storageKeys.showFab),
@@ -161,47 +157,77 @@ export function AuthRoot() {
 		return Math.max(0, Math.min(localCount, LOCAL_LIMIT))
 	}, [localCount])
 
-	const completeLogin = useCallback((nextSession: AuthSession) => {
-		setSession(nextSession)
-		setView("U1")
-		setIsSyncing(true)
-		logEvent("auth.u1.syncing_start")
-
-		if (syncTimerRef.current) {
-			clearTimeout(syncTimerRef.current)
+	useEffect(() => {
+		if (!bootstrappedSessionRef.current) {
+			bootstrappedSessionRef.current = true
+			prevSessionRef.current = session
+			return
 		}
 
-		syncTimerRef.current = setTimeout(() => {
+		const previous = prevSessionRef.current
+		if (session && !previous) {
+			setView("U1")
+			setIsSyncing(true)
+			logEvent("auth.u1.syncing_start")
+			if (syncTimerRef.current) {
+				clearTimeout(syncTimerRef.current)
+			}
+			syncTimerRef.current = setTimeout(() => {
+				setIsSyncing(false)
+				logEvent("auth.u1.syncing_complete")
+				syncTimerRef.current = null
+				setSession((prev) => (prev ? { ...prev, lastSyncAt: Date.now() } : null))
+			}, SYNC_MESSAGE_DURATION)
+		}
+
+		if (!session && previous) {
+			if (syncTimerRef.current) {
+				clearTimeout(syncTimerRef.current)
+				syncTimerRef.current = null
+			}
 			setIsSyncing(false)
-			logEvent("auth.u1.syncing_complete")
-			syncTimerRef.current = null
-			setSession((prev) => (prev ? { ...prev, lastSyncAt: Date.now() } : null))
-		}, SYNC_MESSAGE_DURATION)
-	}, [])
+			setView("U0")
+		}
+
+		prevSessionRef.current = session
+	}, [session])
+
+	const launchAuthFlow = useCallback(
+		async (mode: "login" | "register") => {
+			if (authLaunching) {
+				return
+			}
+			const source = mode === "login" ? "auth.u0.login_click" : "auth.u0.register_click"
+			logEvent(source)
+			setAuthError(null)
+			setAuthLaunchStage("requesting")
+			setAuthLaunching(true)
+			try {
+				await startAuthFlow(mode)
+				logEvent(mode === "login" ? "auth.u0.login_flow_started" : "auth.u0.register_flow_started")
+			} catch (error) {
+				console.error("[auth] failed to start WebAuthFlow", error)
+				logEvent(mode === "login" ? "auth.u0.login_flow_error" : "auth.u0.register_flow_error", { message: (error as Error)?.message })
+				setAuthError("登录窗口未能成功打开，请检查扩展权限或稍后再试。")
+			} finally {
+				setAuthLaunchStage("idle")
+				setAuthLaunching(false)
+			}
+		},
+		[authLaunching]
+	)
 
 	const handleRequestLogin = useCallback(() => {
-		logEvent("auth.u0.login_click")
-		setView("A0_LOGIN")
-	}, [])
+		void launchAuthFlow("login")
+	}, [launchAuthFlow])
 
 	const handleRequestRegister = useCallback(() => {
-		logEvent("auth.a0_login.go_register")
-		setView("A0_REGISTER")
-	}, [])
-
-	const handleSwitchToLogin = useCallback(() => {
-		logEvent("auth.a0_register.go_login")
-		setView("A0_LOGIN")
-	}, [])
-
-	const handleBackToEntry = useCallback(() => {
-		logEvent("auth.a0.back")
-		setView(session ? "U1" : "U0")
-	}, [session])
+		void launchAuthFlow("register")
+	}, [launchAuthFlow])
 
 	const handleFabToggle = useCallback(
 		async (next: boolean) => {
-			const source = session ? "auth.u1.fab_toggle" : view === "A0_REGISTER" ? "auth.a0_register.fab_toggle" : view === "A0_LOGIN" ? "auth.a0_login.fab_toggle" : "auth.u0.fab_toggle"
+			const source = session ? "auth.u1.fab_toggle" : "auth.u0.fab_toggle"
 			logEvent(source, { enabled: next })
 			setShowFab(next)
 			try {
@@ -210,48 +236,18 @@ export function AuthRoot() {
 				console.error("[auth] failed to persist FAB preference", error)
 			}
 		},
-		[session, view]
+		[session]
 	)
 
 	const handleOpenWebApp = useCallback(() => {
-		const source = session ? "auth.u1.open_webapp" : view === "A0_REGISTER" ? "auth.a0_register.open_webapp" : view === "A0_LOGIN" ? "auth.a0_login.open_webapp" : "auth.u0.open_webapp"
+		const source = session ? "auth.u1.open_webapp" : "auth.u0.open_webapp"
 		logEvent(source)
 		try {
 			window.open("https://promptmanna.app", "_blank", "noopener,noreferrer")
 		} catch (error) {
 			console.error("[auth] failed to open web app", error)
 		}
-	}, [session, view])
-
-	const handleSubmitLogin = useCallback(
-		async (payload: LoginPayload) => {
-			const trimmedEmail = payload.email.trim()
-			logEvent("auth.a0_login.submit", { email: trimmedEmail })
-			try {
-				const nextSession = await login({ ...payload, email: trimmedEmail })
-				completeLogin(nextSession)
-			} catch (error) {
-				console.error("[auth] login failed", error)
-				throw error
-			}
-		},
-		[completeLogin]
-	)
-
-	const handleSubmitRegister = useCallback(
-		async (payload: RegisterPayload) => {
-			const trimmedEmail = payload.email.trim()
-			logEvent("auth.a0_register.submit", { email: trimmedEmail })
-			try {
-				const nextSession = await login({ email: trimmedEmail, password: payload.password })
-				completeLogin(nextSession)
-			} catch (error) {
-				console.error("[auth] register failed", error)
-				throw error
-			}
-		},
-		[completeLogin]
-	)
+	}, [session])
 
 	const handleLogout = useCallback(async () => {
 		logEvent("auth.u1.logout", { email: session?.email })
@@ -266,18 +262,13 @@ export function AuthRoot() {
 			console.error("[auth] logout failed", error)
 		} finally {
 			setSession(null)
-			setView("U0")
 		}
 	}, [session])
 
-	const loginTimestampLabel = useMemo(() => {
-		if (!session?.lastSyncAt) {
-			return new Date().toLocaleString()
-		}
-		return new Date(session.lastSyncAt).toLocaleString()
-	}, [session])
+	const joinedLabel = useMemo(() => formatDateOnly(session?.joinedAt ?? session?.lastLoginAt), [session])
 
-	const lastSyncLabel = useMemo(() => formatLastSync(session?.lastSyncAt), [session])
+	const promptCount = session?.promptCount ?? FALLBACK_PROMPT_COUNT
+	const favoriteCount = session?.favoriteCount ?? FALLBACK_FAVORITE_COUNT
 
 	useEffect(() => {
 		if (!initialised) {
@@ -306,24 +297,13 @@ export function AuthRoot() {
 							localCount={safeLocalCount}
 							localLimit={LOCAL_LIMIT}
 							showFab={showFab}
+							authLaunching={authLaunching}
+							authLaunchStage={authLaunchStage}
+							authError={authError}
 							onToggleFab={handleFabToggle}
 							onRequestLogin={handleRequestLogin}
+							onRequestRegister={handleRequestRegister}
 							onOpenWebApp={handleOpenWebApp}
-							versionLabel={VERSION_LABEL}
-						/>
-					) : null}
-					{view === "A0_LOGIN" ? (
-						<A0
-							onSubmit={handleSubmitLogin}
-							onBack={handleBackToEntry}
-							onSwitchToRegister={handleRequestRegister}
-						/>
-					) : null}
-					{view === "A0_REGISTER" ? (
-						<A0Register
-							onSubmit={handleSubmitRegister}
-							onBack={handleBackToEntry}
-							onSwitchToLogin={handleSwitchToLogin}
 						/>
 					) : null}
 					{view === "U1" && session ? (
@@ -333,10 +313,10 @@ export function AuthRoot() {
 							onToggleFab={handleFabToggle}
 							onOpenWebApp={handleOpenWebApp}
 							onLogout={handleLogout}
-							versionLabel={VERSION_LABEL}
-							lastSyncLabel={lastSyncLabel}
-							loginTimestampLabel={loginTimestampLabel}
-							syncing={isSyncing}
+							joinedLabel={joinedLabel}
+							promptCount={promptCount}
+							favoriteCount={favoriteCount}
+									syncing={isSyncing}
 						/>
 					) : null}
 				</>
@@ -434,3 +414,4 @@ function usePopupAutoResize(targetRef: MutableRefObject<HTMLElement | null>) {
 
 	return scheduleResize
 }
+

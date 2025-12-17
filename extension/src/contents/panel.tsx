@@ -33,10 +33,21 @@ export default function PanelContent() {
 		}
 	}, [])
 
+	useEffect(() => {
+		if (!open) return
+		const handleKeyDown = (event: KeyboardEvent) => {
+			if (event.key === "Escape") {
+				setOpen(false)
+			}
+		}
+		window.addEventListener("keydown", handleKeyDown)
+		return () => window.removeEventListener("keydown", handleKeyDown)
+	}, [open])
+
 	if (!open) return null
 
 	return (
-		<PanelShellPlaceholder title="Extension Panel（Home/Find/C-0）占位">
+		<PanelShellPlaceholder title="Extension Panel（Home/Find/C-0）占位" onClose={() => setOpen(false)}>
 			<div>这是 Extension Panel（Home/Find/C-0）占位。</div>
 		</PanelShellPlaceholder>
 	)
