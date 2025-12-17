@@ -1,0 +1,886 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Manager - 静态平铺原型</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#64748b',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-fadeIn { animation: fadeIn 0.24s ease-out; }
+        
+        .animate-slideUp { animation: slideUp 0.24s ease-out; }
+        .animate-scaleIn { animation: scaleIn 0.24s ease-out; }
+        
+
+        
+        /* 统一规则：仅使用 --pm-width 作为唯一真值 */
+        :root {
+          --pm-width: clamp(300px, 19.56vw, 440px);
+          --pm-radius: 12px;
+          --pm-shadow: 0 12px 32px rgba(0,0,0,0.12);
+          --pm-fab-size: 52px;
+          --pm-fab-margin: 16px;
+          --pm-grad-purple: linear-gradient(to bottom right, #3B82F6, #9333EA);
+        }
+
+        /* 外壳容器：用于页面卡片布局，控制总宽度（含左右 padding） */
+        .pm-shell {
+          width: 100%;
+          max-width: var(--pm-width);
+          margin-left: auto;
+          margin-right: auto;
+          box-sizing: border-box;
+        }
+
+        /* 卡片主体：统一视觉、边框、背景、圆角、阴影 */
+        .pm-card {
+          width: 100%;
+          max-width: var(--pm-width);
+          margin-left: auto;
+          margin-right: auto;
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: var(--pm-radius);
+          box-shadow: var(--pm-shadow);
+          overflow: hidden;
+          box-sizing: border-box;
+        }
+
+        /* 模态弹窗主体：用于静态展示（改为卡片） */
+        .pm-modal {
+          width: 100%;
+          max-width: var(--pm-width);
+          max-height: none;
+          background: #fff;
+          border: 1px solid #e5e7eb;
+          border-radius: var(--pm-radius);
+          box-shadow: var(--pm-shadow);
+          overflow: auto;
+          box-sizing: border-box;
+        }
+
+        /* 面板主体（去掉 fixed，作为普通卡片内容） */
+        .panel-content {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            height: 680px; /* 统一面板高度 */
+        }
+        .panel-content .flex-1 { overflow-y: auto; overflow-x: hidden; }
+        .panel-content .flex-1::-webkit-scrollbar { width: 6px; }
+        .panel-content .flex-1::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 3px; }
+        .panel-content .flex-1::-webkit-scrollbar-thumb { background: #c1c1c1; border-radius: 3px; }
+        .panel-content .flex-1::-webkit-scrollbar-thumb:hover { background: #a8a8a8; }
+
+        /* 顶部条/搜索区与输入高度基线 */
+        #panel-brand-bar { padding: 8px 0; }
+        
+
+        .panel-footer {
+            padding: 6px 12px;
+            border-top: 1px solid #e5e7eb;
+            background: #ffffff;
+            border-radius: 0 0 var(--pm-radius) var(--pm-radius);
+            flex-shrink: 0;
+        }
+        .pm-tabbar { display: flex; width: 100%; height: 40px; }
+        .pm-tabbar .pm-tab { position: relative; flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #888888; background: transparent; border: 0; border-radius: 10px; outline: none; transition: color 150ms ease, transform 150ms ease; }
+        .pm-tabbar .pm-tab[role="tab"] { cursor: default; }
+        .pm-tabbar .pm-tab .pm-tab__icon { font-size: 18px; line-height: 1; transition: opacity 150ms ease, transform 150ms ease; }
+        .pm-tabbar .pm-tab .pm-tab__label { font-size: 12px; line-height: 16px; height: 16px; transition: opacity 150ms ease, transform 150ms ease; }
+        .pm-tabbar .pm-tab.is-active { color: #1D5EFF; transform: scale(1.06); font-weight: 600; }
+
+        /* 分段控件 */
+        .pm-seg { position: relative; display: flex; align-items: center; width: 100%; height: 36px; padding: 2px; border-radius: 8px; background: #EEEEEF; border: 1px solid #E5E7EB; user-select: none; }
+        .pm-seg__slider { position: absolute; top: 2px; left: 2px; width: calc((100% - 4px) / 2); height: calc(100% - 4px); background: #FFFFFF; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.05); transform: translateX(0); pointer-events: none; overflow: hidden; }
+        .pm-seg__tab { position: relative; z-index: 1; flex: 1; height: 100%; border-radius: 6px; background: transparent; color: #6B7280; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; font-weight: 500; line-height: 1; }
+        .pm-seg__tab.is-active { color: #000000; }
+
+        /* 其他辅助样式 */
+        .toggle-checkbox:checked + .toggle-label .toggle-ball { transform: translate(22px, 2px); }
+
+        /* Typography */
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          text-rendering: optimizeLegibility;
+        }
+        .fw-regular { font-weight: 400; }
+        .fw-medium { font-weight: 500; }
+        .fw-semibold { font-weight: 600; }
+        .num-tabular { font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum" 1, "lnum" 1; }
+        .ty-page-title { font-size: 24px; line-height: 1.25; font-weight: 600; }
+        .ty-section-title { font-size: 20px; line-height: 1.25; font-weight: 600; }
+        .ty-title { font-size: 18px; line-height: 1.3; font-weight: 500; }
+        .ty-body { font-size: 15px; line-height: 1.45; font-weight: 400; }
+        .ty-label { font-size: 14px; line-height: 1.45; font-weight: 400; }
+        .ty-micro { font-size: 12px; line-height: 1.4; font-weight: 400; }
+        .ty-nano { font-size: 11px; line-height: 1.4; font-weight: 400; }
+        .track-tight { letter-spacing: -0.005em; }
+        
+        /* Chat-like header (与右侧面板保持一致) */
+        .chat-header-HO1Mrn {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          min-height: 36px;
+        }
+        .chat-header-HO1Mrn__left {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 2px;
+        }
+        .chat-header-HO1Mrn__title {
+          font-size: 18px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+        .chat-header-HO1Mrn__title--home {
+          font-size: 35px;
+          line-height: 1;
+        }
+        .chat-header-HO1Mrn__subtitle {
+          font-size: 11px;
+          color: #6b7280;
+          line-height: 1.4;
+        }
+        .chat-header-HO1Mrn__right {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        /* 注入卡片/模态内的 brand-bar：上下留白由内层 py 控制，外层不再额外 padding */
+        .pm-card #panel-brand-bar,
+        .pm-modal #panel-brand-bar {
+          padding: 0;
+        }
+
+
+        /* 展示容器（排版用，不影响组件内部尺寸） */
+        .showcase { max-width: 1200px; margin: 0 auto; padding: 24px; }
+        .showcase-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 28px; align-items: start; }
+        .showcase-title { font-size: 16px; color: #111827; margin-bottom: 8px; }
+
+        /* 隐藏 number input 的上下箭头 */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+            appearance: textfield;
+        }
+        
+        /* Prompt Card：上下布局（上：标题+按钮；下：描述，最多2行） */
+        .pm-card .group > .flex.justify-between.items-center.h-full.gap-3,
+        .pm-card .group > .flex.justify-between.items-center.h-full.gap-2 {
+            display: grid;
+            grid-template-columns: 1fr auto; /* 左：标题/描述；右：按钮 */
+            grid-template-rows: auto auto;    /* 上：标题行；下：描述行 */
+            align-items: start;
+            row-gap: 4px;
+        }
+
+        /* 让文字容器参与父级 grid，而不是自身再做纵向布局 */
+        .pm-card .group > .flex.justify-between.items-center.h-full.gap-3 > .flex-1.min-w-0.flex.flex-col.justify-center,
+        .pm-card .group > .flex.justify-between.items-center.h-full.gap-2 > .flex-1.min-w-0.flex.flex-col.justify-center {
+            display: contents;
+        }
+
+        /* 标题位于左上 */
+        .pm-card .group h6 {
+            grid-column: 1;
+            grid-row: 1;
+            margin-bottom: 0; /* 通过 row-gap 控制上下间距 */
+            align-self: center; /* 标题在上行垂直居中 */
+        }
+
+        /* 按钮位于右上 */
+        .pm-card .group > .flex.justify-between.items-center.h-full.gap-3 > .flex.items-center,
+        .pm-card .group > .flex.justify-between.items-center.h-full.gap-2 > .flex.items-center {
+            grid-column: 2;
+            grid-row: 1;
+            align-self: start;
+        }
+
+        /* 描述位于下一行，且最多显示 2 行 */
+        .pm-card .group p {
+            grid-column: 1 / -1;
+            grid-row: 2;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            line-height: 1.35;
+            margin-top: 0;
+        }
+
+        /* 紧凑化：降低卡片 padding 与最小高度 */
+        .pm-card .group {
+            padding: 10px 12px !important; /* 原 px-3.5 py-3 / px-3 py-2.5 */
+            min-height: 56px !important;   /* 原 68px / 76px */
+        }
+
+        /* 紧凑化：按钮尺寸统一更小 */
+        .pm-card .group button {
+            width: 28px !important;  /* 原部分为 32px */
+            height: 28px !important;
+            border-radius: 8px;
+        }
+
+        /* 标题与描述的行高更紧凑 */
+        .pm-card .group h6 { line-height: 1.25; }        .auth-card {
+          width: 100%;
+          max-width: var(--pm-width);
+          margin: 0 auto;
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+          box-shadow: var(--pm-shadow);
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+        .auth-card__header {
+          padding: 12px 16px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .auth-card__icon {
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+          box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25);
+        }
+        .auth-card__icon--primary {
+          background: linear-gradient(135deg, #3b82f6, #9333ea);
+        }
+        .auth-card__icon--success {
+          background: linear-gradient(135deg, #10b981, #2563eb);
+        }
+        .auth-card__title {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 600;
+          color: #1f2937;
+        }
+        .auth-card__subtitle {
+          margin: 2px 0 0;
+          font-size: 12px;
+          color: #6b7280;
+        }
+        .auth-card__body {
+          padding: 12px 16px 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .auth-card__grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+        @media (max-width: 340px) {
+          .auth-card__grid {
+            grid-template-columns: 1fr;
+          }
+        }
+        .auth-card__block {
+          padding: 12px;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          background: #f8fafc;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .auth-card__block--span-2 {
+          grid-column: span 2;
+        }
+        .auth-card__block--plain {
+          background: transparent;
+          border: 0;
+          padding: 0;
+        }
+        .auth-card__block--alert {
+          background: #fff7ed;
+          border-color: #fed7aa;
+        }
+        .auth-card__block--info {
+          background: #fefce8;
+          border-color: #fef08a;
+        }
+        .auth-card__block--success {
+          background: #ecfdf5;
+          border-color: #bbf7d0;
+        }
+        .auth-card__block--cloud {
+          background: #eff6ff;
+          border-color: #bfdbfe;
+        }
+        .auth-card__block--toggle {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .auth-card__block--actions {
+          gap: 10px;
+        }
+        .auth-card__block-title {
+          margin: 0;
+          font-size: 13px;
+          font-weight: 600;
+          color: #1f2937;
+        }
+        .auth-card__block-meta {
+          margin: 0;
+          font-size: 12px;
+          color: #6b7280;
+        }
+        .auth-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 8px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 500;
+        }
+        .auth-pill--warning {
+          background: #ffedd5;
+          color: #c2410c;
+        }
+        .auth-pill--success {
+          background: #d1fae5;
+          color: #047857;
+        }
+        .auth-list {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          font-size: 12px;
+          color: #b45309;
+          line-height: 1.4;
+        }
+        .auth-list--blue {
+          color: #1d4ed8;
+        }
+        .auth-helper {
+          margin: 0;
+          font-size: 11px;
+          color: #6b7280;
+        }
+        .auth-progress {
+          width: 100%;
+          height: 8px;
+          border-radius: 999px;
+          background: #e2e8f0;
+          overflow: hidden;
+        }
+        .auth-progress__indicator {
+          height: 100%;
+          border-radius: 999px;
+          background: #f97316;
+        }
+        .auth-progress__indicator--success {
+          background: #22c55e;
+        }
+        .auth-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: none;
+          border-radius: 10px;
+          font-size: 13px;
+          font-weight: 600;
+          padding: 9px 12px;
+          cursor: pointer;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .auth-btn--primary {
+          background: linear-gradient(135deg, #3b82f6, #9333ea);
+          color: #fff;
+          box-shadow: 0 8px 16px rgba(59, 130, 246, 0.25);
+        }
+        .auth-btn--secondary {
+          background: #fff;
+          color: #1f2937;
+          border: 1px solid #d1d5db;
+        }
+        .auth-btn--danger {
+          background: #fee2e2;
+          color: #b91c1c;
+        }
+        .auth-btn:hover {
+          transform: translateY(-1px);
+        }
+        .auth-link {
+          padding: 8px 10px;
+          border-radius: 10px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 13px;
+          color: #2563eb;
+          border: 1px solid rgba(37, 99, 235, 0.25);
+          background: rgba(37, 99, 235, 0.04);
+          cursor: pointer;
+          transition: background 0.15s ease;
+        }
+        .auth-link:hover {
+          background: rgba(37, 99, 235, 0.12);
+        }
+        .auth-card__footer {
+          padding: 8px 16px;
+          border-top: 1px solid #e2e8f0;
+          background: #f9fafc;
+          font-size: 11px;
+          text-align: center;
+          color: #94a3b8;
+        }
+        .auth-form {
+          display: flex;
+          flex-direction: column;
+          gap: 9px;
+        }
+        .auth-field__label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #374151;
+          margin-bottom: 4px;
+        }
+        .auth-input {
+          width: 100%;
+          height: 36px;
+          border-radius: 10px;
+          border: 1px solid #d1d5db;
+          background: #f9fafb;
+          padding: 0 10px;
+          font-size: 13px;
+          color: #1f2937;
+        }
+        .auth-divider {
+          position: relative;
+          text-align: center;
+          font-size: 11px;
+          color: #6b7280;
+        }
+        .auth-divider::before {
+          content: "";
+          position: absolute;
+          top: 50%;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: #e5e7eb;
+        }
+        .auth-divider span {
+          position: relative;
+          background: #fff;
+          padding: 0 10px;
+        }
+        .auth-inline-buttons {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 10px;
+        }
+        .auth-inline-actions {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 10px;
+        }
+        .auth-third {
+          border-radius: 10px;
+          padding: 8px 10px;
+          border: 1px solid transparent;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .auth-third--wechat {
+          background: #ecfdf5;
+          border-color: #bbf7d0;
+          color: #047857;
+        }
+        .auth-third--alipay {
+          background: #eff6ff;
+          border-color: #bfdbfe;
+          color: #1d4ed8;
+        }
+        .auth-third:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
+        }
+        .auth-info {
+          padding: 12px;
+          border-radius: 12px;
+          border: 1px solid #bfdbfe;
+          background: #eff6ff;
+          font-size: 12px;
+          color: #1d4ed8;
+          line-height: 1.45;
+        }
+        .auth-info h6 {
+          margin: 0 0 6px;
+          font-size: 13px;
+          font-weight: 600;
+        }
+        .auth-info ul {
+          margin: 0;
+          padding-left: 16px;
+        }
+        .auth-note {
+          margin: 0;
+          font-size: 11px;
+          color: #6b7280;
+          text-align: center;
+        }
+        .auth-note span {
+          color: #2563eb;
+        }
+        .auth-secondary-link {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          color: #6b7280;
+          padding: 6px 10px;
+          border-radius: 8px;
+          transition: color 0.15s ease;
+        }
+        .auth-secondary-link:hover {
+          color: #2563eb;
+        }
+        .auth-banner {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          font-size: 12px;
+          font-weight: 500;
+          color: #1f2937;
+          background: linear-gradient(90deg, rgba(59, 130, 246, 0.12), rgba(16, 185, 129, 0.12));
+          border-radius: 10px;
+          padding: 8px 10px;
+        }
+        .auth-metric-list {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          font-size: 12px;
+          color: #4b5563;
+          line-height: 1.45;
+        }
+        .auth-metric-list li {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+        }
+        .auth-metric-label {
+          color: #6b7280;
+          font-weight: 500;
+        }
+        .auth-metric-value {
+          color: #047857;
+          font-weight: 600;
+        }
+        .auth-metric-list--blue .auth-metric-value {
+          color: #1d4ed8;
+        }
+        .auth-cloud {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px 24px;
+        }
+        .auth-cloud__details {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .auth-cloud__meta-list {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          font-size: 12px;
+          color: #1f2937;
+        }
+        .auth-cloud__meta-list li {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .auth-cloud__meta-list span:last-child {
+          font-weight: 600;
+          color: #2563eb;
+        }
+        .auth-cloud__status {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 11px;
+          color: #047857;
+          font-weight: 600;
+        }
+        .auth-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: #22c55e;
+        }
+
+    </style>
+</head>
+<body class="bg-gray-50">
+    <div class="showcase">
+        <h1 class="ty-page-title fw-semibold text-gray-900 track-tight mb-6">Prompt Manager • Extension 静态平铺原型</h1>
+
+        <div class="showcase-grid">
+            <!-- C-1: Quick-Save Card -->
+            <div>
+                <div class="showcase-title">C-1: Quick-Save Card（精简版）</div>
+                <div class="pm-card">
+                    <div id="panel-brand-bar" class="relative bg-white text-gray-900 select-none">
+                        <div class="px-3 py-2 border-b border-gray-100">
+                            <div class="chat-header-HO1Mrn">
+                                <div class="chat-header-HO1Mrn__left">
+                                    <div class="chat-header-HO1Mrn__title chat-header-HO1Mrn__title--home">快速保存</div>
+                                    <div class="chat-header-HO1Mrn__subtitle">精简版保存功能</div>
+                                </div>
+                                <div class="chat-header-HO1Mrn__right">
+                                    <button type="button" aria-label="关闭面板" title="关闭" class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="p-3 space-y-3">
+                            <div>
+                                <label class="block ty-label fw-medium text-gray-600 mb-1.5">标题 *</label>
+                                <input type="text" placeholder="输入标题..." class="w-full h-9 px-3 ty-label rounded-lg border border-gray-300 bg-gray-50" value="">
+                        </div>
+                        <div>
+                            <label class="block ty-label fw-medium text-gray-600 mb-1.5">分类</label>
+                            <div class="pm-dropdown relative w-full">
+                                <button type="button" class="w-full h-9 px-3 border border-gray-300 rounded-lg bg-white flex items-center justify-between text-gray-900">
+                                    <span class="ty-label text-gray-500">选择分类...</span>
+                                    <i class="fas fa-chevron-down text-gray-500 text-sm"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between">
+                                <label class="block ty-label fw-medium text-gray-600 mb-1.5">内容正文 *</label>
+                                <button type="button" aria-label="放大编辑" class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs text-gray-600 hover:text-blue-600 hover:bg-blue-50 transition-colors">
+                                    <i class="fas fa-up-right-and-down-left-from-center text-[10px]"></i>
+                                    <span>放大</span>
+                                </button>
+                            </div>
+                            <textarea class="w-full min-h-[150px] px-3 py-2 ty-label rounded-lg border border-gray-300 bg-gray-50" placeholder="输入您的 Prompt 内容..."></textarea>
+                        </div>
+                    </div>
+                    <div class="px-3 py-3 border-t bg-gray-50 flex justify-center gap-3 flex-shrink-0">
+                        <button class="w-32 px-6 py-2 border border-gray-200 bg-white text-gray-700 rounded-lg ty-label hover:bg-gray-50 transition-colors">取消</button>
+                        <button class="w-32 px-6 py-2 bg-blue-600 text-white rounded-lg ty-label hover:bg-blue-700 transition-colors">保存</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 成功提示（静态卡片） -->
+            <div>
+                <div class="showcase-title">提示：成功</div>
+                <div class="pm-modal mx-0 animate-fadeIn">
+                    <div class="p-6 text-center">
+                        <div class="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-check text-green-500 text-2xl"></i>
+                        </div>
+                        <h4 class="ty-title fw-semibold mb-2">操作成功！</h4>
+                        <p class="text-gray-600 text-sm">您的 Prompt 已成功保存到云端</p>
+                        <button class="mt-4 px-6 py-2 bg-blue-500 text-white rounded-lg ty-label">确定</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 删除确认（静态卡片） -->
+            <div>
+                <div class="showcase-title">提示：确认删除</div>
+                <div class="pm-modal mx-0 animate-fadeIn">
+                    <div class="p-6 text-center">
+                        <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-trash-can text-red-500 text-2xl"></i>
+                        </div>
+                        <h4 class="ty-title fw-semibold mb-2">确认删除？</h4>
+                        <p class="text-gray-600 text-sm">该操作将永久删除此 Prompt，且不可恢复</p>
+                        <div class="mt-4 flex items-center justify-center gap-3">
+                            <button class="w-32 px-6 py-2 border border-gray-200 bg-white text-gray-700 rounded-lg ty-label">取消</button>
+                            <button class="w-32 px-6 py-2 bg-red-600 text-white rounded-lg ty-label">确认删除</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 新建分类（静态卡片） -->
+            <div>
+                <div class="showcase-title">提示：新建分类</div>
+                <div class="pm-modal mx-0 animate-fadeIn">
+                    <div class="p-6">
+                        <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <i class="fas fa-folder-plus text-blue-500 text-2xl"></i>
+                        </div>
+                        <h4 class="ty-title fw-semibold mb-2 text-center">新建分类</h4>
+                        <div class="space-y-3">
+                            <div>
+                                <label class="block ty-label fw-medium text-gray-700 mb-1.5">分类名称 *</label>
+                                <input type="text" placeholder="输入分类名称（1-16个字符）" class="w-full h-9 px-3 ty-label rounded-lg border border-gray-300 bg-white focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-colors" maxlength="16">
+                                <p class="text-xs text-gray-500 mt-1">不能与已有分类重名</p>
+                            </div>
+                        </div>
+                        <div class="mt-5 flex items-center justify-center gap-3">
+                            <button class="w-32 px-6 py-2 border border-gray-200 bg-white text-gray-700 rounded-lg ty-label hover:bg-gray-50 transition-colors">取消</button>
+                            <button class="w-32 px-6 py-2 bg-blue-600 text-white rounded-lg ty-label hover:bg-blue-700 transition-colors">确认创建</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notepad（静态卡片） -->
+            <div>
+                <div class="showcase-title">E-0: Notepad</div>
+                <div class="pm-modal mx-0 w-full max-w-[1000px] animate-scaleIn">
+                    <!-- 1. 顶部 brand-bar -->
+                    <div id="panel-brand-bar" class="relative bg-white text-gray-900 select-none">
+                        <div class="px-3 py-2 border-b border-gray-100">
+                            <div class="chat-header-HO1Mrn">
+                                <div class="chat-header-HO1Mrn__left">
+                                    <div class="chat-header-HO1Mrn__title chat-header-HO1Mrn__title--home">Notepad</div>
+                                    <div class="chat-header-HO1Mrn__subtitle">便笺与临时编辑</div>
+                                </div>
+                                <div class="chat-header-HO1Mrn__right">
+                                    <button type="button" aria-label="关闭面板" title="关闭" class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
+                                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                            <line x1="18" y1="6" x2="6" y2="18"></line>
+                                            <line x1="6" y1="6" x2="18" y2="18"></line>
+                                        </svg>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- 2. 编辑区域 -->
+                    <textarea id="e0-editor" class="flex-1 w-full p-5 ty-body text-gray-800 bg-white border-0 outline-none resize-none" style="min-height: 360px; line-height: 1.6;" placeholder="在此放大编辑…（此处可作为便笺记录内容，或放大查看 Prompt 与上下文边界）"></textarea>
+                    
+                    <!-- 6. 底部操作按钮区域（合并状态信息） -->
+                    <div class="px-4 py-3 border-t border-gray-100 bg-white flex items-center justify-between flex-shrink-0">
+                        <!-- 左侧：状态信息 -->
+                        <div class="flex flex-col items-start gap-0.5 select-none">
+                            <div class="ty-micro text-gray-500 num-tabular">1,234 字 · 56 行</div>
+                            <div class="inline-flex items-center gap-1 ty-nano text-gray-400">
+                                <i class="fas fa-check text-[10px]"></i>已保存
+                            </div>
+                        </div>
+                        
+                        <!-- 右侧：操作按钮 -->
+                        <div class="flex items-center gap-3">
+                            <button id="e0-copy" type="button" class="px-5 py-2 border border-gray-300 bg-white text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 hover:text-gray-900 hover:border-gray-400 transition-colors shadow-sm">复制</button>
+                            <button type="button" class="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors shadow-sm shadow-blue-100">保存为Prompt</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- E-1: 放大编辑（静态卡片） -->
+            <div>
+                <div class="showcase-title">E-1: 放大编辑</div>
+                <div class="pm-modal mx-0 w-full max-w-[1000px] animate-scaleIn">
+                    <div id="panel-brand-bar" class="relative bg-white text-gray-900 select-none">
+                        <div class="px-3 py-2 border-b border-gray-100">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center">
+                                    <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center mr-2.5">
+                                        <i class="fas fa-up-right-and-down-left-from-center text-white"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-sm font-medium text-gray-900">放大编辑</h4>
+                                        <p class="text-xs text-gray-500">全屏编辑 Prompt 内容</p>
+                                    </div>
+                                </div>
+                                <button type="button" aria-label="关闭面板" title="关闭" class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <textarea id="e1-editor" class="flex-1 w-full p-4 ty-body bg-gray-50 border-0 outline-none resize-none" style="min-height: 360px; line-height: 1.5;" placeholder="在此放大编辑…（此处可作为便笺记录内容，或放大查看 Prompt 与上下文边界）"></textarea>
+                    <div class="px-3 py-3 border-t bg-gray-50 flex justify-center gap-3 flex-shrink-0">
+                        <button class="w-32 px-6 py-2 border border-gray-200 bg-white text-gray-700 rounded-lg ty-label hover:bg-gray-50 transition-colors">取消</button>
+                        <button class="w-32 px-6 py-2 bg-blue-600 text-white rounded-lg ty-label hover:bg-blue-700 transition-colors">完成</button>
+                    </div>
+                </div>
+            </div>
+
+            
+        </div>
+    </div>
+</body>
+</html>
+

@@ -1,0 +1,3711 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prompt Manager • Extension Panel</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="styles/prompt-card.css">
+<script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#64748b',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* Me Hero - Modern Refreshed Style */
+        .me-card {
+          background: #FFFFFF;
+          border: 1px solid #E2E8F0;
+          border-radius: 16px;
+          overflow: hidden;
+          position: relative;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+        .me-card__banner {
+          height: 80px;
+          background: linear-gradient(120deg, #E0F2FE 0%, #F0F9FF 100%);
+          position: relative;
+        }
+        .me-card__content {
+          padding: 0 20px 20px;
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          margin-top: -40px; /* Pull avatar up */
+        }
+        .me-card__avatar-slot {
+          width: 80px;
+          height: 80px;
+          border-radius: 50%;
+          background: #fff;
+          padding: 4px;
+          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+          margin-bottom: 12px;
+          z-index: 1;
+        }
+        .me-card__avatar-img {
+          width: 100%;
+          height: 100%;
+          border-radius: 50%;
+          background: linear-gradient(135deg, #3b82f6, #9333ea);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+          font-size: 24px;
+          font-weight: 700;
+        }
+        .me-card__user-row {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          margin-bottom: 4px;
+          height: 28px;
+        }
+        .me-card__name {
+          font-size: 18px;
+          font-weight: 700;
+          color: #0f172a;
+          line-height: 1.2;
+        }
+        .me-card__edit-btn {
+            color: #94a3b8;
+            transition: color 0.2s;
+            cursor: pointer;
+            padding: 4px;
+        }
+        .me-card__edit-btn:hover {
+            color: #3b82f6;
+        }
+        .me-card__info {
+          font-size: 12px;
+          color: #64748b;
+          margin-bottom: 20px;
+        }
+        .me-card__stats {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          width: 100%;
+          border-top: 1px solid #f1f5f9;
+          padding-top: 16px;
+        }
+        .me-stat-item {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 2px;
+          cursor: default;
+        }
+        .me-stat-val {
+          font-size: 16px;
+          font-weight: 700;
+          color: #0f172a;
+          line-height: 1.2;
+        }
+        .me-stat-label {
+          font-size: 11px;
+          color: #64748b;
+          font-weight: 500;
+        }
+
+        /* Me Collections Header - Elegant Center Badge */
+        .me-section-header {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 16px 0 12px; /* 统一上下节奏：与上方卡片余量匹配，并给下方卡片留同等余白 */
+            padding: 0;
+        }
+        .me-section-header::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 50%;
+            height: 1px;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                rgba(226, 232, 240, 1) 25%, 
+                rgba(226, 232, 240, 1) 75%, 
+                transparent 100%
+            );
+            z-index: 0;
+        }
+        .me-section-badge {
+            position: relative;
+            z-index: 1;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 5px 16px 5px 6px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            border-radius: 99px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+        }
+        .me-section-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            color: #2563eb;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            flex-shrink: 0;
+            border: 1px solid rgba(255,255,255,0.8);
+            box-shadow: 0 2px 4px rgba(37, 99, 235, 0.08);
+        }
+        .me-section-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.1;
+        }
+        .me-section-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: #0f172a;
+            letter-spacing: -0.01em;
+        }
+        .me-section-sublabel {
+            font-size: 10px;
+            color: #64748b;
+            font-weight: 600;
+            margin-top: 1px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        /* Follow 区域：居中并与下方分割线留出间距，避免“压线” */
+        .me-card__follow-badge-wrapper {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+
+        /* Follow badge (pill) — scoped，不影响其他 badge */
+        .me-card__follow-badge .me-section-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 10px 18px;
+            min-width: 120px;
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: #ffffff;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            box-sizing: border-box;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3), 0 1px 2px rgba(37, 99, 235, 0.2);
+            transition: all 200ms cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(0);
+        }
+        .me-card__follow-badge:hover .me-section-badge {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4), 0 2px 4px rgba(37, 99, 235, 0.2);
+            background: linear-gradient(135deg, #4f87f6, #3b76f6);
+        }
+        .me-card__follow-badge:active .me-section-badge {
+            transform: translateY(1px) scale(0.98);
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+        }
+        .me-card__follow-badge .me-section-label {
+            color: #ffffff;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+        }
+        .me-card__follow-badge.is-following .me-section-badge {
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+            color: #64748b;
+        }
+        .me-card__follow-badge.is-following:hover .me-section-badge {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #475569;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(15, 23, 42, 0.06);
+        }
+        .me-card__follow-badge.is-following .me-section-label {
+            color: inherit;
+        }
+
+        /* Social list（关注/粉丝） */
+        .social-shell {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .social-seg-wrap {
+            padding: 4px 0 0;
+        }
+        .social-list {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 0;
+            margin: 0;
+        }
+        .social-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            height: 72px;
+            padding: 12px 14px;
+            border: 1px solid #e2e8f0;
+            border-radius: 14px;
+            background: #ffffff;
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.04);
+        }
+        .social-avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 999px;
+            object-fit: cover;
+            flex-shrink: 0;
+            border: 1px solid #e2e8f0;
+            box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08);
+            background: #f8fafc;
+        }
+        .social-main {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .social-title {
+            font-size: 14px;
+            font-weight: 700;
+            color: #0f172a;
+            line-height: 1.2;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .social-subtitle {
+            font-size: 12px;
+            color: #64748b;
+            line-height: 1.35;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .social-action {
+            flex-shrink: 0;
+        }
+        .social-action .social-pill {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            padding: 7px 14px;
+            min-width: 96px;
+            border-radius: 999px;
+            border: 1px solid #e2e8f0;
+            background: #ffffff;
+            color: #0f172a;
+            font-size: 13px;
+            font-weight: 600;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+            transition: all 160ms ease;
+        }
+        .social-action .social-pill:hover {
+            background: #f8fafc;
+            border-color: #cbd5e1;
+            color: #1f2937;
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08), 0 2px 6px rgba(15, 23, 42, 0.06);
+        }
+        .social-action .social-pill:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06);
+        }
+        /* 蓝色主态：关注 / 回关 */
+        .social-action .social-pill[data-social-state="unfollow"],
+        .social-action .social-pill[data-social-state="follow-back"] {
+            background: linear-gradient(135deg, #3b82f6, #2563eb);
+            color: #ffffff;
+            border: 1px solid transparent;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3), 0 1px 2px rgba(37, 99, 235, 0.2);
+        }
+        .social-action .social-pill[data-social-state="unfollow"]:hover,
+        .social-action .social-pill[data-social-state="follow-back"]:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4), 0 2px 4px rgba(37, 99, 235, 0.2);
+            background: linear-gradient(135deg, #4f87f6, #3b76f6);
+        }
+        .social-action .social-pill[data-social-state="unfollow"]:active,
+        .social-action .social-pill[data-social-state="follow-back"]:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.25);
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes scaleIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to { opacity: 1; transform: scale(1); }
+        }
+        .animate-fadeIn { animation: fadeIn 0.24s ease-out; }
+        
+        .animate-slideUp { animation: slideUp 0.24s ease-out; }
+        .animate-scaleIn { animation: scaleIn 0.24s ease-out; }
+        
+
+        
+        /* 统一规则：仅使用 --pm-width 作为唯一真值 */
+        :root {
+          --pm-panel-min: 372px;
+          --pm-panel-max: 1209px;
+          --pm-panel-width: 372px;
+          --pm-radius: 12px;
+          --pm-shadow: 0 12px 32px rgba(0,0,0,0.12);
+          --pm-fab-size: 52px;
+          --pm-fab-margin: 16px;
+          --pm-grad-purple: linear-gradient(to bottom right, #3B82F6, #9333EA);
+          --pm-transition: 260ms cubic-bezier(0.24, 0.8, 0.32, 1);
+          --pm-width: var(--pm-panel-width);
+        }
+/* 面板主体（去掉 fixed，作为普通卡片内容） */
+        .panel-content {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+          width: 100%;
+          min-width: 0;
+          overflow: hidden;
+        }
+        .panel-body {
+          width: 100%;
+          min-width: 0;
+          flex: 1 1 auto;
+          display: flex;
+          flex-direction: column;
+          min-height: 0;
+        }
+
+        /* 顶部条/搜索区与输入高度基线 */
+        #panel-brand-bar { padding: 8px 0; }
+        
+
+        /* Chat-like header: Welcome + 状态 + 关闭 */
+        .chat-header-HO1Mrn {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          min-height: 36px;
+        }
+        .chat-header-HO1Mrn__left {
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          gap: 2px;
+        }
+        .chat-header-HO1Mrn__title {
+          font-size: 18px;
+          font-weight: 700;
+          color: #0f172a;
+        }
+        .chat-header-HO1Mrn__title--home {
+          font-size: 35px;
+          line-height: 1;
+        }
+        .chat-header-HO1Mrn__subtitle {
+          font-size: 11px;
+          color: #6b7280;
+          line-height: 1.4;
+        }
+        .chat-header-HO1Mrn__right {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .chat-header-HO1Mrn__pill {
+          padding: 2px 10px;
+          border-radius: 999px;
+          border: 1px solid #bfdbfe;
+          background: #eff6ff;
+          font-size: 11px;
+          font-weight: 500;
+          color: #1d4ed8;
+          white-space: nowrap;
+        }
+
+        /* 数字指标块 */
+        .pm-pane__stat {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 4px 10px;
+          border-radius: 12px;
+          background: #f8fafc;
+          border: 1px solid #e2e8f0;
+        }
+        .pm-pane__stat-value {
+          font-size: 16px;
+          font-weight: 700;
+          color: #0f172a;
+          line-height: 1.2;
+        }
+        .pm-pane__stat-label {
+          font-size: 11px;
+          font-weight: 500;
+          color: #64748b;
+          line-height: 1.2;
+        }
+
+        .panel-footer {
+          padding: 8px 12px;
+          border-top: 1px solid #e5e7eb;
+          background: #ffffff;
+          border-radius: 0;
+          flex-shrink: 0;
+        }
+        .pm-tabbar { display: flex; width: 100%; height: 40px; }
+        .pm-tabbar .pm-tab { position: relative; flex: 1; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; color: #888888; background: transparent; border: 0; border-radius: 10px; outline: none; transition: color 150ms ease, transform 150ms ease; }
+        .pm-tabbar .pm-tab[role="tab"] { cursor: default; }
+        .pm-tabbar .pm-tab .pm-tab__icon { font-size: 18px; line-height: 1; transition: opacity 150ms ease, transform 150ms ease; }
+        .pm-tabbar .pm-tab .pm-tab__label { font-size: 12px; line-height: 16px; height: 16px; transition: opacity 150ms ease, transform 150ms ease; }
+        .pm-tabbar .pm-tab.is-active { color: #1D5EFF; transform: scale(1.06); font-weight: 600; }
+
+        /* 分段控件 */
+        .pm-seg { position: relative; display: flex; align-items: center; width: 100%; height: 36px; padding: 2px; border-radius: 8px; background: #EEEEEF; border: 1px solid #E5E7EB; user-select: none; }
+        .pm-seg__slider { position: absolute; top: 2px; left: 2px; width: calc((100% - 4px) / 2); height: calc(100% - 4px); background: #FFFFFF; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,0.06), 0 2px 6px rgba(0,0,0,0.05); transform: translateX(0); pointer-events: none; overflow: hidden; }
+        .pm-seg__tab { position: relative; z-index: 1; flex: 1; height: 100%; border-radius: 6px; background: transparent; color: #6B7280; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 13px; font-weight: 500; line-height: 1; }
+        .pm-seg__tab.is-active { color: #000000; }
+
+        /* 其他辅助样式 */
+        .toggle-checkbox:checked + .toggle-label .toggle-ball { transform: translate(22px, 2px); }
+
+        /* Typography */
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif;
+          -webkit-font-smoothing: antialiased;
+          -moz-osx-font-smoothing: grayscale;
+          text-rendering: optimizeLegibility;
+        }
+        .fw-regular { font-weight: 400; }
+        .fw-medium { font-weight: 500; }
+        .fw-semibold { font-weight: 600; }
+        .num-tabular { font-variant-numeric: tabular-nums lining-nums; font-feature-settings: "tnum" 1, "lnum" 1; }
+        .ty-page-title { font-size: 24px; line-height: 1.25; font-weight: 600; }
+        .ty-section-title { font-size: 20px; line-height: 1.25; font-weight: 600; }
+        .ty-title { font-size: 18px; line-height: 1.3; font-weight: 500; }
+        .ty-body { font-size: 15px; line-height: 1.45; font-weight: 400; }
+        .ty-label { font-size: 14px; line-height: 1.45; font-weight: 400; }
+        .ty-micro { font-size: 12px; line-height: 1.4; font-weight: 400; }
+        .ty-nano { font-size: 11px; line-height: 1.4; font-weight: 400; }
+        .track-tight { letter-spacing: -0.005em; }
+/* 隐藏 number input 的上下箭头 */
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            appearance: none;
+            margin: 0;
+        }
+        input[type="number"] {
+            -moz-appearance: textfield;
+            appearance: textfield;
+        }
+        
+
+        .auth-card {
+          width: 100%;
+          max-width: var(--pm-width);
+          margin: 0 auto;
+          background: #fff;
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+          box-shadow: var(--pm-shadow);
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+        }
+        .auth-card__header {
+          padding: 12px 16px;
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .auth-card__icon {
+          width: 36px;
+          height: 36px;
+          border-radius: 10px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #fff;
+          box-shadow: 0 8px 18px rgba(59, 130, 246, 0.25);
+        }
+        .auth-card__icon--primary {
+          background: linear-gradient(135deg, #3b82f6, #9333ea);
+        }
+        .auth-card__icon--success {
+          background: linear-gradient(135deg, #10b981, #2563eb);
+        }
+        .auth-card__title {
+          margin: 0;
+          font-size: 14px;
+          font-weight: 600;
+          color: #1f2937;
+        }
+        .auth-card__subtitle {
+          margin: 2px 0 0;
+          font-size: 12px;
+          color: #6b7280;
+        }
+        .auth-card__body {
+          padding: 12px 16px 14px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+        .auth-card__grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+        @media (max-width: 340px) {
+          .auth-card__grid {
+            grid-template-columns: 1fr;
+          }
+        }
+        .auth-card__block {
+          padding: 12px;
+          border-radius: 12px;
+          border: 1px solid #e2e8f0;
+          background: #f8fafc;
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+        }
+        .auth-card__block--span-2 {
+          grid-column: span 2;
+        }
+        .auth-card__block--plain {
+          background: transparent;
+          border: 0;
+          padding: 0;
+        }
+        .auth-card__block--alert {
+          background: #fff7ed;
+          border-color: #fed7aa;
+        }
+        .auth-card__block--info {
+          background: #fefce8;
+          border-color: #fef08a;
+        }
+        .auth-card__block--success {
+          background: #ecfdf5;
+          border-color: #bbf7d0;
+        }
+        .auth-card__block--cloud {
+          background: #eff6ff;
+          border-color: #bfdbfe;
+        }
+        .auth-card__block--toggle {
+          flex-direction: row;
+          align-items: center;
+          justify-content: space-between;
+        }
+        .auth-card__block--actions {
+          gap: 10px;
+        }
+        .auth-card__block-title {
+          margin: 0;
+          font-size: 13px;
+          font-weight: 600;
+          color: #1f2937;
+        }
+        .auth-card__block-meta {
+          margin: 0;
+          font-size: 12px;
+          color: #6b7280;
+        }
+        .auth-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 8px;
+          border-radius: 999px;
+          font-size: 11px;
+          font-weight: 500;
+        }
+        .auth-pill--warning {
+          background: #ffedd5;
+          color: #c2410c;
+        }
+        .auth-pill--success {
+          background: #d1fae5;
+          color: #047857;
+        }
+        .auth-list {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          font-size: 12px;
+          color: #b45309;
+          line-height: 1.4;
+        }
+        .auth-list--blue {
+          color: #1d4ed8;
+        }
+        .auth-helper {
+          margin: 0;
+          font-size: 11px;
+          color: #6b7280;
+        }
+        .auth-progress {
+          width: 100%;
+          height: 8px;
+          border-radius: 999px;
+          background: #e2e8f0;
+          overflow: hidden;
+        }
+        .auth-progress__indicator {
+          height: 100%;
+          border-radius: 999px;
+          background: #f97316;
+        }
+        .auth-progress__indicator--success {
+          background: #22c55e;
+        }
+        .auth-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border: none;
+          border-radius: 10px;
+          font-size: 13px;
+          font-weight: 600;
+          padding: 9px 12px;
+          cursor: pointer;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .auth-btn--primary {
+          background: linear-gradient(135deg, #3b82f6, #9333ea);
+          color: #fff;
+          box-shadow: 0 8px 16px rgba(59, 130, 246, 0.25);
+        }
+        .auth-btn--secondary {
+          background: #fff;
+          color: #1f2937;
+          border: 1px solid #d1d5db;
+        }
+        .auth-btn--danger {
+          background: #fee2e2;
+          color: #b91c1c;
+        }
+        .auth-btn:hover {
+          transform: translateY(-1px);
+        }
+        .auth-link {
+          padding: 8px 10px;
+          border-radius: 10px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 13px;
+          color: #2563eb;
+          border: 1px solid rgba(37, 99, 235, 0.25);
+          background: rgba(37, 99, 235, 0.04);
+          cursor: pointer;
+          transition: background 0.15s ease;
+        }
+        .auth-link:hover {
+          background: rgba(37, 99, 235, 0.12);
+        }
+        .auth-card__footer {
+          padding: 8px 16px;
+          border-top: 1px solid #e2e8f0;
+          background: #f9fafc;
+          font-size: 11px;
+          text-align: center;
+          color: #94a3b8;
+        }
+        .auth-form {
+          display: flex;
+          flex-direction: column;
+          gap: 9px;
+        }
+        .auth-field__label {
+          font-size: 12px;
+          font-weight: 600;
+          color: #374151;
+          margin-bottom: 4px;
+        }
+        .auth-input {
+          width: 100%;
+          height: 36px;
+          border-radius: 10px;
+          border: 1px solid #d1d5db;
+          background: #ffffff;
+          padding: 0 10px;
+          font-size: 13px;
+          color: #1f2937;
+        }
+        .auth-divider {
+          position: relative;
+          text-align: center;
+          font-size: 11px;
+          color: #6b7280;
+        }
+        .auth-divider::before {
+          content: "";
+          position: absolute;
+          top: 50%;
+          left: 0;
+          right: 0;
+          height: 1px;
+          background: #e5e7eb;
+        }
+        .auth-divider span {
+          position: relative;
+          background: #fff;
+          padding: 0 10px;
+        }
+        .auth-inline-buttons {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 10px;
+        }
+        .auth-inline-actions {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 10px;
+        }
+        .auth-third {
+          border-radius: 10px;
+          padding: 8px 10px;
+          border: 1px solid transparent;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: transform 0.15s ease, box-shadow 0.15s ease;
+        }
+        .auth-third--wechat {
+          background: #ecfdf5;
+          border-color: #bbf7d0;
+          color: #047857;
+        }
+        .auth-third--alipay {
+          background: #eff6ff;
+          border-color: #bfdbfe;
+          color: #1d4ed8;
+        }
+        .auth-third:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 8px 16px rgba(15, 23, 42, 0.12);
+        }
+        .auth-info {
+          padding: 12px;
+          border-radius: 12px;
+          border: 1px solid #bfdbfe;
+          background: #eff6ff;
+          font-size: 12px;
+          color: #1d4ed8;
+          line-height: 1.45;
+        }
+        .auth-info h6 {
+          margin: 0 0 6px;
+          font-size: 13px;
+          font-weight: 600;
+        }
+        .auth-info ul {
+          margin: 0;
+          padding-left: 16px;
+        }
+        .auth-note {
+          margin: 0;
+          font-size: 11px;
+          color: #6b7280;
+          text-align: center;
+        }
+        .auth-note span {
+          color: #2563eb;
+        }
+        .auth-secondary-link {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 12px;
+          color: #6b7280;
+          padding: 6px 10px;
+          border-radius: 8px;
+          transition: color 0.15s ease;
+        }
+        .auth-secondary-link:hover {
+          color: #2563eb;
+        }
+        .auth-banner {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          font-size: 12px;
+          font-weight: 500;
+          color: #1f2937;
+          background: linear-gradient(90deg, rgba(59, 130, 246, 0.12), rgba(16, 185, 129, 0.12));
+          border-radius: 10px;
+          padding: 8px 10px;
+        }
+        .auth-metric-list {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          font-size: 12px;
+          color: #4b5563;
+          line-height: 1.45;
+        }
+        .auth-metric-list li {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+        }
+        .auth-metric-label {
+          color: #6b7280;
+          font-weight: 500;
+        }
+        .auth-metric-value {
+          color: #047857;
+          font-weight: 600;
+        }
+        .auth-metric-list--blue .auth-metric-value {
+          color: #1d4ed8;
+        }
+        .auth-cloud {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 12px 24px;
+        }
+        .auth-cloud__details {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        .auth-cloud__meta-list {
+          margin: 0;
+          padding: 0;
+          list-style: none;
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          font-size: 12px;
+          color: #1f2937;
+        }
+        .auth-cloud__meta-list li {
+          display: flex;
+          justify-content: space-between;
+          gap: 12px;
+        }
+        .auth-cloud__meta-list span:last-child {
+          font-weight: 600;
+          color: #2563eb;
+        }
+        .auth-cloud__status {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 11px;
+          color: #047857;
+          font-weight: 600;
+        }
+        .auth-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: #22c55e;
+        }
+
+        .pm-card-stack {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+          padding: 12px 0 20px;
+          background: transparent;
+          border-radius: 0;
+        }
+        .pm-card-stack > .pm-card {
+          width: 100%;
+          max-width: 100%;
+        }
+
+        /* Snapshot list — VSCode composer toolbar style */
+        @import url('https://microsoft.github.io/vscode-codicons/dist/codicon.css');
+        :root {
+          --vscode-input-background: #ffffff;
+          --vscode-input-placeholderForeground: #64748b;
+          --cursor-icon-secondary: #94a3b8;
+          --cursor-stroke-tertiary: #e2e8f0;
+        }
+        .snapshot-composer {
+          padding: 0;
+          border: 1px solid #d1d5db;
+          border-radius: 12px;
+          background: #fff;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+          flex: 1;
+          min-height: 0;
+          margin-bottom: 12px;
+        }
+        .composer-shell {
+          background: #f8fafc;
+          border-bottom: 1px solid #d1d5db;
+          display: flex;
+          flex-direction: column;
+          gap: 0;
+          flex: 0 0 auto;
+        }
+        .composer-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          height: 36px;
+          cursor: default;
+          padding: 0 8px;
+          user-select: none;
+        }
+        /* Market 简化头部 */
+        .composer-shell--simple {
+          background: #f8fafc;
+          border-bottom: 1px solid #e5e7eb;
+          padding: 8px 10px;
+        }
+        .composer-header--simple {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          min-height: 36px;
+        }
+        .composer-header--simple .composer-summary {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          font-size: 13px;
+          font-weight: 600;
+          color: #0f172a;
+        }
+        .composer-header--simple .composer-summary .status-dot {
+          width: 8px;
+          height: 8px;
+          border-radius: 999px;
+          background: #22c55e;
+          box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.12);
+          flex-shrink: 0;
+        }
+        .composer-header--simple .composer-actions .composer-btn {
+          border: 1px solid #e2e8f0;
+          background: #ffffff;
+          color: #334155;
+          height: 28px;
+          padding: 0 10px;
+          border-radius: 8px;
+          box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+        }
+        .composer-header--simple .composer-actions .composer-btn:hover {
+          border-color: #cbd5e1;
+          color: #1f2937;
+          background: #f8fafc;
+        }
+        .composer-toggle {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          flex: 1 1 auto;
+          min-width: 0;
+          color: var(--vscode-input-placeholderForeground);
+        }
+        .composer-toggle .composer-chevron {
+          border: none;
+          background: transparent;
+          padding: 0;
+          margin: 0;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 20px;
+          height: 20px;
+          border-radius: 4px;
+          transition: background 120ms;
+        }
+        .composer-toggle .composer-chevron:hover {
+            background: rgba(0,0,0,0.05);
+        }
+        .composer-toggle .composer-chevron i {
+          color: var(--cursor-icon-secondary);
+          font-size: 14px;
+          flex-shrink: 0;
+          transition: transform 0.12s ease;
+          transform: rotate(90deg);
+        }
+        .composer-header.is-collapsed .composer-chevron i {
+          transform: rotate(0deg);
+        }
+        .composer-summary {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 12px;
+          color: #475569;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .composer-summary [data-freeze-active] {
+          color: #1f2937;
+          font-weight: 500;
+        }
+        .composer-actions {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .composer-btn {
+            border: 1px solid transparent;
+            background: transparent;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 500;
+            border-radius: 6px;
+            padding: 0 8px;
+            height: 24px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 140ms ease;
+            cursor: pointer;
+        }
+        .composer-btn:hover {
+            background: rgba(0,0,0,0.04);
+            color: #1f2937;
+        }
+        .composer-freeze-btn {
+          border: 1px solid transparent;
+          background: #eff6ff;
+          color: #2563eb;
+          font-size: 12px;
+          font-weight: 600;
+          border-radius: 6px;
+          padding: 0 10px;
+          height: 24px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 140ms ease;
+          cursor: pointer;
+        }
+        .composer-freeze-btn:hover {
+          background: #dbeafe;
+          color: #1d4ed8;
+        }
+        .composer-body {
+          display: flex;
+          flex-direction: column;
+          gap: 0;
+          background: #f8fafc;
+          flex: 1;
+          min-height: 0;
+        }
+        .composer-scroll {
+          max-height: 120px;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding: 4px 8px 8px 8px;
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+          border-bottom: 1px solid #d1d5db;
+          flex: 0 0 auto;
+        }
+        .composer-item {
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          min-height: 28px;
+          width: 100%;
+          background: transparent;
+          border: none;
+          padding: 2px 6px;
+          border-radius: 6px;
+          cursor: pointer;
+          transition: background 120ms ease;
+        }
+        .composer-item:hover {
+          background: rgba(0,0,0,0.04);
+        }
+        .composer-item.is-active {
+          background: #e0ecff;
+        }
+        .composer-item-icon {
+          width: 14px;
+          height: 14px;
+          border-radius: 999px;
+          border: 1.5px solid #d1d5db;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          transition: all 120ms ease;
+        }
+        .composer-item.is-active .composer-item-icon {
+          border-color: #3b82f6;
+          background: #3b82f6;
+        }
+        .composer-item.is-active .composer-item-icon .codicon {
+            color: white;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        .composer-item-text {
+          font-size: 13px;
+          color: #334155;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          flex: 1 1 auto;
+          min-width: 0;
+          text-align: left;
+        }
+        .composer-item-meta {
+          display: inline-flex;
+          align-items: center;
+          gap: 2px;
+          font-size: 11px;
+          color: #94a3b8;
+          flex-shrink: 0;
+        }
+        .composer-delete {
+          border: none;
+          background: transparent;
+          color: #94a3b8;
+          border-radius: 4px;
+          width: 20px;
+          height: 20px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          transition: all 120ms ease;
+          cursor: pointer;
+        }
+        .composer-delete i {
+          font-size: 13px;
+          line-height: 1;
+        }
+        .composer-delete:hover {
+          color: #ef4444;
+          background: rgba(239, 68, 68, 0.1);
+          border: 1px solid #d1d5db;
+        }
+        /* Snapshot pill & separator */
+        .snapshot-pill {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 20px;
+          padding: 0 6px;
+          border-radius: 999px;
+          background: #eef2ff;
+          color: #4f46e5;
+          border: 1px solid #e0e7ff;
+          font-size: 11px;
+          font-weight: 700;
+          line-height: 1;
+          box-shadow: 0 1px 2px rgba(79, 70, 229, 0.12);
+          white-space: nowrap;
+        }
+        .snapshot-pill--current {
+          background: #f1f5f9;
+          color: #475569;
+          border-color: #e2e8f0;
+          box-shadow: inset 0 1px 2px rgba(0,0,0,0.04);
+        }
+        .snapshot-sep {
+          margin: 0;
+          color: #94a3b8;
+          font-weight: 700;
+          user-select: none;
+          line-height: 1;
+        }
+        .snapshot-delete {
+          width: auto;
+          height: 20px;
+          min-height: 20px;
+          padding: 0 2px;
+          border: 1px solid transparent;
+          box-sizing: border-box;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          line-height: 1;
+        }
+        .snapshot-delete i {
+          line-height: 1;
+          transform: translateY(0.5px);
+        }
+        .composer-editor-area {
+            background: #fff;
+            padding: 0;
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+        #edit-copy-textarea {
+            width: 100%;
+            height: 100%;
+            flex: 1;
+            min-height: 0;
+            padding: 16px;
+            border: none;
+            resize: none;
+            outline: none;
+            font-family: inherit;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #0f172a;
+            background: transparent;
+        }
+        #edit-copy-textarea::placeholder {
+            color: #94a3b8;
+        }
+
+        /* Icon buttons (for toolbar actions) */
+        .icon-btn {
+          width: 34px;
+          height: 34px;
+          border-radius: 10px;
+          border: 1px solid #e5e7eb;
+          background: #ffffff;
+          color: #475569;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          transition: all 140ms ease;
+          cursor: pointer;
+        }
+        .icon-btn:hover {
+          border-color: #d7dfe7;
+          background: #f8fafc;
+          color: #1f2937;
+        }
+        .icon-btn--blue {
+          color: #2563eb;
+          border-color: #dbeafe;
+          background: #eff6ff;
+        }
+        .icon-btn--blue:hover {
+          background: #dbeafe;
+          border-color: #bfdbfe;
+          color: #1d4ed8;
+        }
+        .icon-btn--purple {
+          color: #7c3aed;
+          border-color: #e9d5ff;
+          background: #f5f3ff;
+        }
+        .icon-btn--purple:hover {
+          background: #ede9fe;
+          border-color: #d8b4fe;
+          color: #6d28d9;
+        }
+
+        /* Right-side squeeze layout */
+        .pm-body {
+          min-height: 100vh;
+          background: #f8fafc;
+          color: #0f172a;
+        }
+        .pm-host {
+          min-height: 100vh;
+          padding: clamp(32px, 6vw, 72px);
+          max-width: 720px;
+          margin: 0 auto;
+          transition: margin-right var(--pm-transition), filter 200ms ease;
+        }
+        body.panel-open .pm-host {
+          margin-right: var(--pm-panel-width);
+          filter: saturate(0.95);
+        }
+        .pm-host__card {
+          background: #ffffff;
+          border: 1px solid #e2e8f0;
+          border-radius: 28px;
+          padding: clamp(28px, 4vw, 40px);
+          box-shadow: 0 30px 70px rgba(15, 23, 42, 0.08);
+        }
+        .pm-host__eyebrow {
+          letter-spacing: 0.35em;
+          font-size: 11px;
+          font-weight: 600;
+          color: #64748b;
+          text-transform: uppercase;
+          margin-bottom: 16px;
+        }
+        .pm-host__card h1 {
+          font-size: clamp(28px, 4vw, 42px);
+          font-weight: 700;
+          color: #0f172a;
+          margin-bottom: 12px;
+        }
+        .pm-host__card p {
+          font-size: 16px;
+          color: #475569;
+          line-height: 1.6;
+        }
+        .pm-host__list {
+          list-style: none;
+          margin: 20px 0;
+          padding: 0;
+        }
+        .pm-host__list li {
+          position: relative;
+          padding-left: 1.4em;
+          font-size: 15px;
+          color: #334155;
+          margin-bottom: 8px;
+        }
+        .pm-host__list li::before {
+          content: '\2022';
+          position: absolute;
+          left: 0;
+          color: #3b82f6;
+          font-weight: 700;
+        }
+        .pm-host__hint {
+          margin-top: 20px;
+          font-size: 13px;
+          color: #475569;
+          padding: 12px 16px;
+          background: #eff6ff;
+          border-radius: 12px;
+          border: 1px solid #bfdbfe;
+        }
+        .pm-panel {
+          position: fixed;
+          top: 0;
+          right: 0;
+          bottom: 0;
+          width: min(var(--pm-panel-width), var(--pm-panel-max));
+          min-width: var(--pm-panel-min);
+          max-width: var(--pm-panel-max);
+          background: #ffffff;
+          border-left: 1px solid #e2e8f0;
+          box-shadow: -18px 0 40px rgba(15, 23, 42, 0.18);
+          transform: translateX(calc(100% + 32px));
+          transition: transform var(--pm-transition);
+          display: flex;
+          flex-direction: column;
+          z-index: 60;
+          overflow: hidden;
+        }
+        body.panel-open .pm-panel {
+          transform: translateX(0);
+        }
+        .pm-panel__scroll {
+          flex: 1;
+          display: flex;
+          flex-direction: column;
+          overflow-y: auto;
+          overflow-x: hidden;
+          padding: 0;
+          background: #ffffff;
+        }
+        .pm-panel__views {
+          flex: 1;
+          min-height: 100%;
+          width: 100%;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          padding: 0;
+        }
+        .pm-view {
+          display: none;
+          flex: 1;
+          min-height: 100%;
+          width: 100%;
+          min-width: 0;
+        }
+        .pm-view.is-active {
+          display: flex;
+        }
+        .pm-view-shell {
+          flex: 1;
+          min-height: 100%;
+          width: 100%;
+          min-width: 0;
+          display: flex;
+          flex-direction: column;
+          background: #ffffff;
+        }
+.pm-panel__resizer {
+          position: absolute;
+          top: 0;
+          left: -6px;
+          bottom: 0;
+          width: 12px;
+          cursor: col-resize;
+          z-index: 80;
+        }
+        .pm-panel__resizer::after {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 4px;
+          width: 2px;
+          height: 72px;
+          background: linear-gradient(180deg, rgba(15,23,42,0.15), rgba(15,23,42,0.05));
+          transform: translateY(-50%);
+          border-radius: 999px;
+        }
+        body:not(.panel-open) .pm-panel__resizer {
+          pointer-events: none;
+        }
+        .pm-fab {
+          position: fixed;
+          right: 24px;
+          bottom: 24px;
+          width: var(--pm-fab-size);
+          height: var(--pm-fab-size);
+          border: none;
+          border-radius: 999px;
+          background: linear-gradient(135deg, #3b82f6, #9333ea);
+          color: #fff;
+          font-size: 20px;
+          box-shadow: 0 18px 35px rgba(59, 130, 246, 0.35);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: transform var(--pm-transition), box-shadow 200ms ease;
+          z-index: 90;
+        }
+        .pm-fab:hover {
+          box-shadow: 0 28px 45px rgba(59, 130, 246, 0.4);
+        }
+        body.panel-open .pm-fab {
+          transform: translateX(calc(-1 * (var(--pm-panel-width) - 32px)));
+        }
+        .pm-fab .fab-icon-close {
+          display: none;
+        }
+        body.panel-open .pm-fab .fab-icon-wand {
+          display: none;
+        }
+        body.panel-open .pm-fab .fab-icon-close {
+          display: inline-flex;
+        }
+        @media (max-width: 768px) {
+          .pm-host {
+            padding: 32px 20px 96px;
+            margin-right: 0;
+          }
+          body.panel-open .pm-host {
+            margin-right: 0;
+          }
+          .pm-panel {
+            width: min(100vw, var(--pm-panel-width));
+            min-width: min(100vw, var(--pm-panel-min));
+          }
+          body.panel-open .pm-fab {
+            transform: translateY(-80px);
+          }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 pm-body">
+
+    <div class="pm-host" id="pm-host">
+        <div class="pm-host__card">
+            <p class="pm-host__eyebrow">HOST PAGE</p>
+            <h1>InstancePrompt 宿主页面示例</h1>
+            <p>这里用一小段正文占位，模拟真实网页内容。右下角的浮动按钮是唯一入口。</p>
+            <ul class="pm-host__list">
+                <li>初始仅显示正文 + FAB，保持页面原始宽度。</li>
+                <li>点击 FAB：右侧面板从屏幕边缘滑出，占据固定列并把正文整体左移。</li>
+                <li>再次点击或按 Esc：面板收回，正文恢复满宽。</li>
+            </ul>
+            <p class="pm-host__hint">提示：拖动面板左侧的竖向控制条，可在 480px 至 1209px 之间调整宽度。</p>
+        </div>
+    </div>
+
+    <aside class="pm-panel" id="pm-panel" aria-label="Prompt Manager Extension Panel" aria-hidden="true">
+        <div class="pm-panel__resizer" data-panel-resizer aria-hidden="true"></div>
+        <div class="pm-panel__scroll">
+
+        
+                                        <div class="pm-panel__views" data-panel-views>
+            <section class="pm-view is-active" data-panel-view="home">
+                <div class="pm-view-shell">
+                                    <div class="panel-content flex flex-col min-h-0">
+                                    <div class="panel-body px-3 flex flex-col min-h-0">
+                                            <div id="panel-brand-bar" class="relative bg-white text-gray-900 select-none">
+                                                <div class="px-0 py-2 border-b border-gray-100">
+                                                    <div class="chat-header-HO1Mrn">
+                                                        <div class="chat-header-HO1Mrn__left">
+                                                            <div class="chat-header-HO1Mrn__title chat-header-HO1Mrn__title--home">Welcome 👋</div>
+                                                        </div>
+                                                        <div class="chat-header-HO1Mrn__right">
+                                                            <div class="pm-pane__stat" aria-label="库内 Prompt 总数">
+                                                                <span class="pm-pane__stat-value">32</span>
+                                                                <span class="pm-pane__stat-label">Prompts</span>
+                                                            </div>
+                                                            <button type="button" aria-label="关闭面板" title="关闭" class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors" data-action="close-panel">
+                                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="bg-white">
+                                                <div class="px-0 pt-2 pb-0">
+                                                    <div class="flex space-x-2">
+                                                        <div class="relative flex-1 pm-search">
+                                                            <input type="text" placeholder="搜索我的 Prompt…" class="w-full pl-9 pr-8 h-9 border rounded-lg ty-label bg-white">
+                                                            <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-sm"></i>
+                                                        </div>
+                                                        <button class="px-3 h-9 bg-blue-500 text-white rounded-lg ty-label fw-medium flex items-center space-x-1" data-view-target="save" data-save-mode="create">
+                                                            <span class="inline-flex items-center justify-center w-4 h-4">
+                                                                <i class="fas fa-plus ty-micro leading-none"></i>
+                                                            </span>
+                                                            <span>新建</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+
+                                            <div class="bg-white">
+                                                <div class="px-3 py-2">
+                                                    <label class="block text-xs font-medium text-gray-600">分类</label>
+                                                </div>
+                                                <div class="px-0 pt-0 pb-0">
+                                                    <div class="pm-dropdown relative w-full">
+                                                        <button type="button" class="w-full h-9 px-3 border border-gray-300 rounded-lg bg-white flex items-center justify-between text-gray-900" data-dropdown-trigger aria-expanded="false">
+                                                            <span class="pm-dropdown-label text-xs">全部</span>
+                                                            <i class="fas fa-chevron-down text-gray-500 text-sm"></i>
+                                                        </button>
+                                                        <div class="pm-dropdown__menu absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden animate-fadeIn hidden" data-dropdown-menu>
+                                                            <div class="py-0 max-h-[200px] overflow-y-auto">
+                                                                <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center justify-between" data-value="全部" data-count="128">
+                                                                    <span class="text-gray-900">全部</span>
+                                                                    <span class="text-[11px] text-gray-400">128</span>
+                                                                </button>
+                                                                <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 bg-blue-50 flex items-center justify-between" data-value="编程" data-count="42">
+                                                                    <span class="text-blue-700 font-medium">编程</span>
+                                                                    <span class="text-[11px] text-blue-600">42</span>
+                                                                </button>
+                                                                <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center justify-between" data-value="写作" data-count="28">
+                                                                    <span class="text-gray-900">写作</span>
+                                                                    <span class="text-[11px] text-gray-400">28</span>
+                                                                </button>
+                                                                <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center justify-between" data-value="商务" data-count="18">
+                                                                    <span class="text-gray-900">商务</span>
+                                                                    <span class="text-[11px] text-gray-400">18</span>
+                                                                </button>
+                                                                <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center justify-between" data-value="营销" data-count="22">
+                                                                    <span class="text-gray-900">营销</span>
+                                                                    <span class="text-[11px] text-gray-400">22</span>
+                                                                </button>
+                                                                <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center justify-between" data-value="翻译" data-count="15">
+                                                                    <span class="text-gray-900">翻译</span>
+                                                                    <span class="text-[11px] text-gray-400">15</span>
+                                                                </button>
+                                                                <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center justify-between" data-value="其他" data-count="3">
+                                                                    <span class="text-gray-900">其他</span>
+                                                                    <span class="text-[11px] text-gray-400">3</span>
+                                                                </button>
+                                                                <div class="border-t border-gray-200"></div>
+                                                                <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold flex items-center justify-center" data-value="新建分类">
+                                                                    <span>新建分类</span>
+                                                        </button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="flex-1 min-h-0 bg-white px-0 py-2">
+                                                <div class="pm-card-stack" role="list" style="padding-bottom: 8px;">
+                                                    <article class="pm-card" role="listitem" aria-label="API文档生成器">
+                                                        <div class="pm-card__actions-left" aria-label="快捷操作">
+                                                            <button class="pm-card__action-btn pm-card__action-btn--primary" type="button" title="直接复制">
+                                                                复制
+                                                            </button>
+                                                            <button class="pm-card__action-btn pm-card__action-btn--secondary" type="button" title="编辑后复制" data-view-target="edit-copy" data-prompt-title="API文档生成器" data-prompt-note="为项目生成专业的API文档，包含参数说明和使用示例" data-prompt-content="请根据以下接口描述生成标准API文档，包含参数、响应示例以及注意事项。">
+                                                                编辑复制
+                                                            </button>
+                                                        </div>
+                                                        <div class="pm-card__body" aria-live="polite">
+                                                            <div class="pm-card__body-main">
+                                                                <p class="pm-card__title">API文档生成器</p>
+                                                                <p class="pm-card__snippet">为项目生成专业的API文档，包含参数说明和使用示例</p>
+                                                            </div>
+                                                        </div>
+                                                        <div class="pm-card__meta">
+                                                            <button class="pm-icon-btn pm-icon-btn--surface pm-card__meta-icon" type="button" title="编辑" data-view-target="save">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                                                                    <path d="M4.75 15.75V19.5h3.75l9.75-9.75-3.75-3.75L4.75 15.75z"></path>
+                                                                    <path d="M14.1 6.4l2.6-2.6a1.4 1.4 0 011.98 0l1.9 1.9a1.4 1.4 0 010 1.98l-2.6 2.6"></path>
+                                                                </svg>
+                                                                <span class="sr-only">编辑</span>
+                                                            </button>
+                                                        </div>
+                                                        <div class="pm-card__info-row">
+                                                            <div class="pm-card__author">
+                                                                <img class="pm-card__avatar" src="https://avatars.githubusercontent.com/u/41582525?v=4" alt="Maverick Lang">
+                                                                <span class="pm-card__author-name">Maverick Lang</span>
+                                                                <span class="pm-card__last-used">· 2 days ago</span>
+                                                            </div>
+                                                            <div class="pm-card__favorite" aria-label="收藏量">
+                                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                                <span class="pm-card__favorite-count">268</span>
+                                                            </div>
+                                                        </div>
+                                                    </article>
+                                                    <article class="pm-card" role="listitem" aria-label="数据库设计助手">
+                                                        <div class="pm-card__actions-left" aria-label="快捷操作">
+                                                            <button class="pm-card__action-btn pm-card__action-btn--primary" type="button" title="直接复制">
+                                                                复制
+                                                            </button>
+                                                            <button class="pm-card__action-btn pm-card__action-btn--secondary" type="button" title="编辑后复制" data-view-target="edit-copy" data-prompt-title="数据库设计助手" data-prompt-note="专业数据库架构设计建议，包含表结构优化" data-prompt-content="请根据以下业务场景设计数据库表结构，并给出字段说明、索引及约束策略。">
+                                                                编辑复制
+                                                            </button>
+                                                        </div>
+                                                        <div class="pm-card__body" aria-live="polite">
+                                                            <div class="pm-card__body-main">
+                                                                <p class="pm-card__title">数据库设计助手</p>
+                                                                <p class="pm-card__snippet">专业数据库架构设计建议，包含表结构优化</p>
+                                                            </div>
+                                                        </div>
+                                                        <div class="pm-card__meta">
+                                                            <button class="pm-icon-btn pm-icon-btn--surface pm-card__meta-icon" type="button" title="编辑" data-view-target="save">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                                                                    <path d="M4.75 15.75V19.5h3.75l9.75-9.75-3.75-3.75L4.75 15.75z"></path>
+                                                                    <path d="M14.1 6.4l2.6-2.6a1.4 1.4 0 011.98 0l1.9 1.9a1.4 1.4 0 010 1.98l-2.6 2.6"></path>
+                                                                </svg>
+                                                                <span class="sr-only">编辑</span>
+                                                            </button>
+                                                        </div>
+                                                        <div class="pm-card__info-row">
+                                                            <div class="pm-card__author">
+                                                                <img class="pm-card__avatar" src="https://avatars.githubusercontent.com/u/1413542?v=4" alt="DataSmith">
+                                                                <span class="pm-card__author-name">DataSmith</span>
+                                                                <span class="pm-card__last-used">· 5 days ago</span>
+                                                            </div>
+                                                            <div class="pm-card__favorite" aria-label="收藏量">
+                                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                                <span class="pm-card__favorite-count">192</span>
+                                                            </div>
+                                                        </div>
+                                                    </article>
+                                                    <article class="pm-card" role="listitem" aria-label="营销文案创作">
+                                                        <div class="pm-card__actions-left" aria-label="快捷操作">
+                                                            <button class="pm-card__action-btn pm-card__action-btn--primary" type="button" title="直接复制">
+                                                                复制
+                                                            </button>
+                                                            <button class="pm-card__action-btn pm-card__action-btn--secondary" type="button" title="编辑后复制" data-view-target="edit-copy" data-prompt-title="营销文案创作" data-prompt-note="为产品创作吸引人的营销文案，适用于多种渠道" data-prompt-content="请基于以下产品信息撰写多版本营销文案，突出卖点并包含明确的号召。">
+                                                                编辑复制
+                                                            </button>
+                                                        </div>
+                                                        <div class="pm-card__body" aria-live="polite">
+                                                            <div class="pm-card__body-main">
+                                                                <p class="pm-card__title">营销文案创作</p>
+                                                                <p class="pm-card__snippet">为产品创作吸引人的营销文案，适用于多种渠道</p>
+                                                            </div>
+                                                        </div>
+                                                        <div class="pm-card__meta">
+                                                            <button class="pm-icon-btn pm-icon-btn--surface pm-card__meta-icon" type="button" title="编辑" data-view-target="save">
+                                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" aria-hidden="true">
+                                                                    <path d="M4.75 15.75V19.5h3.75l9.75-9.75-3.75-3.75L4.75 15.75z"></path>
+                                                                    <path d="M14.1 6.4l2.6-2.6a1.4 1.4 0 011.98 0l1.9 1.9a1.4 1.4 0 010 1.98l-2.6 2.6"></path>
+                                                                </svg>
+                                                                <span class="sr-only">编辑</span>
+                                                            </button>
+                                                        </div>
+                                                        <div class="pm-card__info-row">
+                                                            <div class="pm-card__author">
+                                                                <img class="pm-card__avatar" src="https://avatars.githubusercontent.com/u/6844498?v=4" alt="CopyCat Studio">
+                                                                <span class="pm-card__author-name">CopyCat Studio</span>
+                                                                <span class="pm-card__last-used">· 7 days ago</span>
+                                                            </div>
+                                                            <div class="pm-card__favorite" aria-label="收藏量">
+                                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                                <span class="pm-card__favorite-count">341</span>
+                                                            </div>
+                                                        </div>
+                                                    </article>
+                                                </div>
+                                            </div>
+                                    <!-- 分页控制器（独立区域，紧贴 Tabbar 上方） -->
+                                    <div class="w-full bg-white px-3 py-3 border-t border-gray-50">
+                                        <div class="flex items-center justify-center gap-2">
+                                            
+                                            <!-- 左侧操作组 -->
+                                            <div class="flex items-center gap-1">
+                                                <!-- 首页：次要操作，颜色更浅 -->
+                                                <button type="button" 
+                                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition-all" 
+                                                    disabled
+                                                    title="第一页">
+                                                    <i class="fas fa-angles-left text-[10px]"></i>
+                                                </button>
+                                                
+                                                <!-- 上一页：主要操作 -->
+                                                <button type="button" 
+                                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-30 disabled:hover:bg-transparent transition-all" 
+                                                    disabled
+                                                    title="上一页">
+                                                    <i class="fas fa-chevron-left text-xs"></i>
+                                                </button>
+                                            </div>
+
+                                            <!-- 中间页码显示 -->
+                                            <!-- 优化点：去掉边框，改用浅色背景，增加圆角 -->
+                                            <div class="h-8 px-3 flex items-center gap-1.5 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors group cursor-text">
+                                                <input type="number" 
+                                                    value="2" 
+                                                    min="1" 
+                                                    max="48" 
+                                                    class="w-6 text-[13px] font-semibold text-gray-700 text-center bg-transparent border-none focus:ring-0 focus:outline-none p-0 num-tabular group-hover:text-blue-600 selection:bg-blue-100">
+                                                <span class="text-xs text-gray-400 font-medium">/</span>
+                                                <span class="text-xs text-gray-400 font-medium num-tabular">48</span>
+                                            </div>
+
+                                            <!-- 右侧操作组 -->
+                                            <div class="flex items-center gap-1">
+                                                <!-- 下一页 -->
+                                                <button type="button" 
+                                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                                    title="下一页">
+                                                    <i class="fas fa-chevron-right text-xs"></i>
+                                                </button>
+                                                
+                                                <!-- 尾页 -->
+                                                <button type="button" 
+                                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+                                                    title="最后一页">
+                                                    <i class="fas fa-angles-right text-[10px]"></i>
+                                                </button>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="panel-footer">
+                                    <div class="pm-tabbar" role="tablist" aria-label="Mode Picker">
+                                        <button type="button" role="tab" aria-label="Tutorials" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="learn">
+                                            <i class="pm-tab__icon fas fa-book-open" aria-hidden="true"></i>
+                                            <span class="pm-tab__label">教材</span>
+                                        </button>
+                                        <button type="button" role="tab" aria-label="Home" aria-selected="true" aria-pressed="true" class="pm-tab is-active" data-view-target="home">
+                                            <i class="pm-tab__icon fas fa-house" aria-hidden="true"></i>
+                                            <span class="pm-tab__label">Home</span>
+                                        </button>
+                                        <button type="button" role="tab" aria-label="Find" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="find">
+                                            <i class="pm-tab__icon fas fa-magnifying-glass" aria-hidden="true"></i>
+                                            <span class="pm-tab__label">Find</span>
+                                        </button>
+                                        <button type="button" role="tab" aria-label="Me" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="me">
+                                            <i class="pm-tab__icon fas fa-user" aria-hidden="true"></i>
+                                            <span class="pm-tab__label">我的</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                </div>
+            </section>
+            <section class="pm-view" data-panel-view="find" hidden>
+                <div class="pm-view-shell">
+                                    <div class="panel-content flex flex-col min-h-0">
+                                        <div class="panel-body px-3 flex flex-col min-h-0">
+                                            <div id="panel-brand-bar" class="relative bg-white text-gray-900 select-none">
+                                                <div class="px-0 py-2 border-b border-gray-100">
+                                                    <div class="chat-header-HO1Mrn">
+                                                        <div class="chat-header-HO1Mrn__left">
+                                                            <div class="chat-header-HO1Mrn__title chat-header-HO1Mrn__title--home">The Market</div>
+                                                            <div class="chat-header-HO1Mrn__subtitle">在这里发现社区/市场模板</div>
+                                                        </div>
+                                                        <div class="chat-header-HO1Mrn__right">
+                                                            <div class="pm-pane__stat" aria-label="市场模板总数">
+                                                                <span class="pm-pane__stat-value">12.3K</span>
+                                                                <span class="pm-pane__stat-label">Market Prompts</span>
+                                                            </div>
+                                                            <button type="button" aria-label="关闭面板" title="关闭" class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors" data-action="close-panel">
+                                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="bg-white">
+                                                <div class="px-0 pt-2 pb-0">
+                                                    <div class="flex space-x-2">
+                                                        <div class="relative flex-1 pm-search">
+                                                            <input type="text" placeholder="搜索市场模板…" class="w-full pl-9 pr-8 h-9 border rounded-lg ty-label bg-white">
+                                                            <i class="fas fa-search absolute left-3 top-2.5 text-gray-400 text-sm"></i>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="bg-white border-t border-gray-100">
+                                                <div class="px-3 py-0.5 flex items-center justify-between gap-3">
+                                                    <div class="relative">
+                                                        <button type="button" class="group inline-flex items-center gap-1 text-[11px] font-medium text-gray-600 hover:text-blue-600" data-find-filter-trigger>
+                                                            <span data-find-filter-label>过滤：全部</span>
+                                                            <svg class="w-3 h-3 text-gray-400 group-hover:text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                                            </svg>
+                                                        </button>
+                                                        <div class="absolute left-0 top-full mt-1 w-44 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-xs text-gray-700 hidden z-20" data-find-filter-menu>
+                                                            <div class="max-h-[220px] overflow-y-auto">
+                                                                <button type="button" class="w-full px-3 py-1.5 text-left hover:bg-gray-50 text-[11px] flex justify-between" data-filter-option="全部">
+                                                                    <span class="text-gray-900">全部</span>
+                                                                    <span class="text-[11px] text-gray-400">128</span>
+                                                                </button>
+                                                                <button type="button" class="w-full px-3 py-1.5 text-left hover:bg-blue-50 text-[11px] flex justify-between" data-filter-option="编程">
+                                                                    <span class="text-blue-700 font-medium">编程</span>
+                                                                    <span class="text-[11px] text-blue-600">42</span>
+                                                                </button>
+                                                                <button type="button" class="w-full px-3 py-1.5 text-left hover:bg-gray-50 text-[11px] flex justify-between" data-filter-option="写作">
+                                                                    <span class="text-gray-900">写作</span>
+                                                                    <span class="text-[11px] text-gray-400">28</span>
+                                                                </button>
+                                                                <button type="button" class="w-full px-3 py-1.5 text-left hover:bg-gray-50 text-[11px] flex justify-between" data-filter-option="商务">
+                                                                    <span class="text-gray-900">商务</span>
+                                                                    <span class="text-[11px] text-gray-400">18</span>
+                                                                </button>
+                                                                <button type="button" class="w-full px-3 py-1.5 text-left hover:bg-gray-50 text-[11px] flex justify-between" data-filter-option="营销">
+                                                                    <span class="text-gray-900">营销</span>
+                                                                    <span class="text-[11px] text-gray-400">22</span>
+                                                                </button>
+                                                                <button type="button" class="w-full px-3 py-1.5 text-left hover:bg-gray-50 text-[11px] flex justify-between" data-filter-option="翻译">
+                                                                    <span class="text-gray-900">翻译</span>
+                                                                    <span class="text-[11px] text-gray-400">15</span>
+                                                                </button>
+                                                                <button type="button" class="w-full px-3 py-1.5 text-left hover:bg-gray-50 text-[11px] flex justify-between" data-filter-option="其他">
+                                                                    <span class="text-gray-900">其他</span>
+                                                                    <span class="text-[11px] text-gray-400">3</span>
+                                                                </button>
+                                                </div>
+                                                        </div>
+                                                    </div>
+
+                                                    <div class="relative">
+                                                        <button type="button" class="group inline-flex items-center gap-1 text-[11px] font-medium text-gray-600 hover:text-blue-600" data-find-sort-trigger data-sort-value="latest">
+                                                            <span data-find-sort-label>排序：最新</span>
+                                                            <svg class="w-3 h-3 text-gray-400 group-hover:text-blue-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                                            </svg>
+                                                        </button>
+                                                        <div class="absolute right-0 top-full mt-1 w-32 rounded-lg border border-gray-200 bg-white shadow-lg py-1 text-xs text-gray-700 hidden z-20" data-find-sort-menu>
+                                                            <button type="button" class="w-full px-3 py-1.5 text-left hover:bg-gray-50 text-[11px] flex justify-between" data-sort-option="latest">
+                                                                <span>最新</span>
+                                                                <span class="text-gray-400">Latest</span>
+                                                            </button>
+                                                            <button type="button" class="w-full px-3 py-1.5 text-left hover:bg-gray-50 text-[11px] flex justify-between" data-sort-option="popular">
+                                                                <span>最热</span>
+                                                                <span class="text-gray-400">Popular</span>
+                                                        </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="flex-1 min-h-0 bg-white px-0 py-0">
+                                                <div class="pm-card-stack" role="list" style="padding-bottom: 8px;">
+                                                    <article class="pm-card" role="listitem" aria-label="SEO文章优化">
+                                                        <div class="pm-card__actions-left" aria-label="快捷操作">
+                                                            <button class="pm-card__action-btn pm-card__action-btn--primary" type="button" title="直接复制">
+                                                                复制
+                                                            </button>
+                                                            <button class="pm-card__action-btn pm-card__action-btn--secondary" type="button" title="编辑后复制" data-view-target="edit-copy" data-prompt-title="SEO文章优化" data-prompt-note="优化文章内容，提升搜索引擎排名" data-prompt-content="请对以下文章进行SEO优化，调整结构、关键词密度并输出改写后的内容。">
+                                                                编辑复制
+                                                            </button>
+                                                        </div>
+                                                        <div class="pm-card__body" aria-live="polite">
+                                                            <div class="pm-card__body-main">
+                                                                <p class="pm-card__title">SEO文章优化</p>
+                                                                <p class="pm-card__snippet">优化文章内容，提升搜索引擎排名</p>
+                                                            </div>
+                                                        </div>
+                                                        <div class="pm-card__meta">
+                                                            <button class="pm-icon-btn pm-icon-btn--surface pm-card__meta-icon" type="button" title="收藏到库" data-action="favorite-card">
+                                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                                <span class="sr-only">收藏到库</span>
+                                                            </button>
+                                                        </div>
+                                                        <div class="pm-card__info-row">
+                                                            <div class="pm-card__author">
+                                                                <img class="pm-card__avatar" src="https://avatars.githubusercontent.com/u/1024025?v=4" alt="SEO Pro">
+                                                                <span class="pm-card__author-name">SEO Pro</span>
+                                                                <span class="pm-card__last-used">· 12 days ago</span>
+                                                            </div>
+                                                            <div class="pm-card__favorite" aria-label="收藏量">
+                                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                                <span class="pm-card__favorite-count">12.3K</span>
+                                                            </div>
+                                                        </div>
+                                                    </article>
+                                                    <article class="pm-card" role="listitem" aria-label="商务邮件写作">
+                                                        <div class="pm-card__actions-left" aria-label="快捷操作">
+                                                            <button class="pm-card__action-btn pm-card__action-btn--primary" type="button" title="直接复制">
+                                                                复制
+                                                            </button>
+                                                            <button class="pm-card__action-btn pm-card__action-btn--secondary" type="button" title="编辑后复制" data-view-target="edit-copy" data-prompt-title="商务邮件写作" data-prompt-note="专业商务邮件写作助手" data-prompt-content="请根据下列要点撰写一封专业商务邮件，语气礼貌、结构清晰并带有行动指引。">
+                                                                编辑复制
+                                                            </button>
+                                                        </div>
+                                                        <div class="pm-card__body" aria-live="polite">
+                                                            <div class="pm-card__body-main">
+                                                                <p class="pm-card__title">商务邮件写作</p>
+                                                                <p class="pm-card__snippet">专业商务邮件写作助手</p>
+                                                            </div>
+                                                        </div>
+                                                        <div class="pm-card__meta">
+                                                            <button class="pm-icon-btn pm-icon-btn--surface pm-card__meta-icon" type="button" title="收藏到库" data-action="favorite-card">
+                                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                                <span class="sr-only">收藏到库</span>
+                                                            </button>
+                                                        </div>
+                                                        <div class="pm-card__info-row">
+                                                            <div class="pm-card__author">
+                                                                <img class="pm-card__avatar" src="https://avatars.githubusercontent.com/u/8396104?v=4" alt="BizMailer">
+                                                                <span class="pm-card__author-name">BizMailer</span>
+                                                                <span class="pm-card__last-used">· 15 days ago</span>
+                                                            </div>
+                                                            <div class="pm-card__favorite" aria-label="收藏量">
+                                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                                <span class="pm-card__favorite-count">9.8K</span>
+                                                            </div>
+                                                        </div>
+                                                    </article>
+                                                </div>
+                                            </div>
+                                    <!-- 分页控制器（独立区域，紧贴 Tabbar 上方） -->
+                                    <div class="w-full bg-white px-3 py-3 border-t border-gray-50">
+                                        <div class="flex items-center justify-center gap-2">
+                                            
+                                            <!-- 左侧操作组 -->
+                                            <div class="flex items-center gap-1">
+                                                <!-- 首页：次要操作，颜色更浅 -->
+                                                <button type="button" 
+                                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 disabled:opacity-30 disabled:hover:bg-transparent transition-all" 
+                                                    title="第一页">
+                                                    <i class="fas fa-angles-left text-[10px]"></i>
+                                                </button>
+                                                
+                                                <!-- 上一页：主要操作 -->
+                                                <button type="button" 
+                                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-30 disabled:hover:bg-transparent transition-all" 
+                                                    title="上一页">
+                                                    <i class="fas fa-chevron-left text-xs"></i>
+                                                </button>
+                                            </div>
+
+                                            <!-- 中间页码显示 -->
+                                            <!-- 优化点：去掉边框，改用浅色背景，增加圆角 -->
+                                            <div class="h-8 px-3 flex items-center gap-1.5 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors group cursor-text">
+                                                <input type="number" 
+                                                    value="5" 
+                                                    min="1" 
+                                                    max="127" 
+                                                    class="w-6 text-[13px] font-semibold text-gray-700 text-center bg-transparent border-none focus:ring-0 focus:outline-none p-0 num-tabular group-hover:text-blue-600 selection:bg-blue-100">
+                                                <span class="text-xs text-gray-400 font-medium">/</span>
+                                                <span class="text-xs text-gray-400 font-medium num-tabular">127</span>
+                                            </div>
+
+                                            <!-- 右侧操作组 -->
+                                            <div class="flex items-center gap-1">
+                                                <!-- 下一页 -->
+                                                <button type="button" 
+                                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-all"
+                                                    title="下一页">
+                                                    <i class="fas fa-chevron-right text-xs"></i>
+                                                </button>
+                                                
+                                                <!-- 尾页 -->
+                                                <button type="button" 
+                                                    class="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
+                                                    title="最后一页">
+                                                    <i class="fas fa-angles-right text-[10px]"></i>
+                                                </button>
+                                            </div>
+
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="panel-footer">
+                                    <div class="pm-tabbar" role="tablist" aria-label="Mode Picker">
+                                        <button type="button" role="tab" aria-label="Tutorials" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="learn">
+                                            <i class="pm-tab__icon fas fa-book-open" aria-hidden="true"></i>
+                                            <span class="pm-tab__label">教材</span>
+                                        </button>
+                                        <button type="button" role="tab" aria-label="Home" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="home">
+                                            <i class="pm-tab__icon fas fa-house" aria-hidden="true"></i>
+                                            <span class="pm-tab__label">Home</span>
+                                        </button>
+                                        <button type="button" role="tab" aria-label="Find" aria-selected="true" aria-pressed="true" class="pm-tab is-active" data-view-target="find">
+                                            <i class="pm-tab__icon fas fa-magnifying-glass" aria-hidden="true"></i>
+                                            <span class="pm-tab__label">Find</span>
+                                        </button>
+                                        <button type="button" role="tab" aria-label="Me" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="me">
+                                            <i class="pm-tab__icon fas fa-user" aria-hidden="true"></i>
+                                            <span class="pm-tab__label">我的</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                </div>
+            </section>
+            <section class="pm-view" data-panel-view="learn" hidden>
+                <div class="pm-view-shell">
+                    <div class="panel-content flex flex-col min-h-0">
+                        <div class="panel-body px-3 flex flex-col min-h-0">
+                            <!-- 空白页占位 -->
+                        </div>
+                        <div class="panel-footer">
+                            <div class="pm-tabbar" role="tablist" aria-label="Mode Picker">
+                                <button type="button" role="tab" aria-label="Tutorials" aria-selected="true" aria-pressed="true" class="pm-tab is-active" data-view-target="learn">
+                                    <i class="pm-tab__icon fas fa-book-open" aria-hidden="true"></i>
+                                    <span class="pm-tab__label">教材</span>
+                                </button>
+                                <button type="button" role="tab" aria-label="Home" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="home">
+                                    <i class="pm-tab__icon fas fa-house" aria-hidden="true"></i>
+                                    <span class="pm-tab__label">Home</span>
+                                </button>
+                                <button type="button" role="tab" aria-label="Find" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="find">
+                                    <i class="pm-tab__icon fas fa-magnifying-glass" aria-hidden="true"></i>
+                                    <span class="pm-tab__label">Find</span>
+                                </button>
+                                <button type="button" role="tab" aria-label="Me" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="me">
+                                    <i class="pm-tab__icon fas fa-user" aria-hidden="true"></i>
+                                    <span class="pm-tab__label">我的</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="pm-view" data-panel-view="me" hidden>
+                <div class="pm-view-shell">
+                    <div class="panel-content flex flex-col min-h-0 bg-gray-50">
+                        <div class="panel-body px-4 py-6 flex flex-col min-h-0 overflow-y-auto">
+
+                            <!-- Hero Card: 个人信息聚合 -->
+                            <div class="me-card mb-1">
+                                <div class="me-card__banner"></div>
+                                <div class="me-card__content">
+                                    <div class="me-card__avatar-slot">
+                                        <div class="me-card__avatar-img">PM</div>
+                                    </div>
+                                    
+                                    <div class="me-card__user-row">
+                                        <h2 class="me-card__name" data-username-display>user@example.com</h2>
+                                        <!-- 输入框样式：简单内联适配 -->
+                                        <input class="me-hero__name-input" style="font-size:14px; padding:2px 8px; height:24px; width:160px; color:#333; background:#fff; border:1px solid #cbd5e1; border-radius:4px;" type="text" value="user@example.com" hidden data-username-input>
+                                        <button type="button" class="me-card__edit-btn" data-username-edit title="修改用户名">
+                                            <i class="fas fa-pen" style="font-size: 12px;"></i>
+                                        </button>
+                                    </div>
+                                    <p class="me-card__info">Joined Aug 2024 · Pro Plan</p>
+                                    <div class="me-card__follow-badge-wrapper">
+                                        <button type="button" class="me-card__follow-badge" data-action="toggle-follow" hidden>
+                                            <div class="me-section-badge">
+                                                <div class="me-section-text">
+                                                    <span class="me-section-label" data-follow-label>关注</span>
+                                                </div>
+                                            </div>
+                                        </button>
+                                    </div>
+                                    
+                                    <div class="me-card__stats">
+                                        <div class="me-stat-item">
+                                            <span class="me-stat-val num-tabular">54</span>
+                                            <span class="me-stat-label">关注</span>
+                                        </div>
+                                        <div class="me-stat-item">
+                                            <span class="me-stat-val num-tabular">12.3k</span>
+                                            <span class="me-stat-label">粉丝</span>
+                                        </div>
+                                        <div class="me-stat-item">
+                                            <span class="me-stat-val num-tabular">834</span>
+                                            <span class="me-stat-label">获得的收藏</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Collections List: 收藏的 Prompt 卡片（与 Find 页一致） -->
+                            <div class="flex flex-col gap-0">
+                                <div class="me-section-header">
+                                    <div class="me-section-badge">
+                                        <div class="me-section-icon">
+                                            <i class="fas fa-bookmark" data-collection-icon></i>
+                                        </div>
+                                        <div class="me-section-text">
+                                            <span class="me-section-label" data-collection-label>我的收藏</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="pm-card-stack" role="list" style="padding-bottom: 4px;">
+                                    <article class="pm-card" role="listitem" aria-label="产品需求评审助手">
+                                        <div class="pm-card__actions-left" aria-label="快捷操作">
+                                            <button class="pm-card__action-btn pm-card__action-btn--primary" type="button" title="直接复制">
+                                                复制
+                                            </button>
+                                            <button class="pm-card__action-btn pm-card__action-btn--secondary" type="button" title="编辑后复制" data-view-target="edit-copy" data-prompt-title="产品需求评审助手" data-prompt-note="帮助梳理需求、补全风险与边界" data-prompt-content="请根据以下需求，梳理关键目标、风险、边界条件，并列出需要澄清的开放问题。">
+                                                编辑复制
+                                            </button>
+                                        </div>
+                                        <div class="pm-card__body" aria-live="polite">
+                                            <div class="pm-card__body-main">
+                                                <p class="pm-card__title">产品需求评审助手</p>
+                                                <p class="pm-card__snippet">帮助梳理需求、补全风险与边界</p>
+                                            </div>
+                                        </div>
+                                        <div class="pm-card__meta">
+                                            <button class="pm-icon-btn pm-icon-btn--surface pm-card__meta-icon" type="button" title="收藏到库" data-action="favorite-card">
+                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                <span class="sr-only">收藏到库</span>
+                                            </button>
+                                        </div>
+                                        <div class="pm-card__info-row">
+                                            <div class="pm-card__author">
+                                                <img class="pm-card__avatar" src="https://avatars.githubusercontent.com/u/1413542?v=4" alt="Product PM">
+                                                <span class="pm-card__author-name">Product PM</span>
+                                                <span class="pm-card__last-used">· 3 days ago</span>
+                                            </div>
+                                            <div class="pm-card__favorite" aria-label="收藏量">
+                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                <span class="pm-card__favorite-count">128</span>
+                                            </div>
+                                        </div>
+                                    </article>
+
+                                    <article class="pm-card" role="listitem" aria-label="代码审查助手">
+                                        <div class="pm-card__actions-left" aria-label="快捷操作">
+                                            <button class="pm-card__action-btn pm-card__action-btn--primary" type="button" title="直接复制">
+                                                复制
+                                            </button>
+                                            <button class="pm-card__action-btn pm-card__action-btn--secondary" type="button" title="编辑后复制" data-view-target="edit-copy" data-prompt-title="代码审查助手" data-prompt-note="按安全、性能、可维护性给出建议" data-prompt-content="你是一位资深的{{语言}}开发专家，请帮我审查以下代码,重点关注{{功能}}方面的问题：">
+                                                编辑复制
+                                            </button>
+                                        </div>
+                                        <div class="pm-card__body" aria-live="polite">
+                                            <div class="pm-card__body-main">
+                                                <p class="pm-card__title">代码审查助手</p>
+                                                <p class="pm-card__snippet">按安全、性能、可维护性给出建议</p>
+                                            </div>
+                                        </div>
+                                        <div class="pm-card__meta">
+                                            <button class="pm-icon-btn pm-icon-btn--surface pm-card__meta-icon" type="button" title="收藏到库" data-action="favorite-card">
+                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                <span class="sr-only">收藏到库</span>
+                                            </button>
+                                        </div>
+                                        <div class="pm-card__info-row">
+                                            <div class="pm-card__author">
+                                                <img class="pm-card__avatar" src="https://avatars.githubusercontent.com/u/41582525?v=4" alt="Code Reviewer">
+                                                <span class="pm-card__author-name">Code Reviewer</span>
+                                                <span class="pm-card__last-used">· 5 days ago</span>
+                                            </div>
+                                            <div class="pm-card__favorite" aria-label="收藏量">
+                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                <span class="pm-card__favorite-count">96</span>
+                                            </div>
+                                        </div>
+                                    </article>
+
+                                    <article class="pm-card" role="listitem" aria-label="营销创意生成器">
+                                        <div class="pm-card__actions-left" aria-label="快捷操作">
+                                            <button class="pm-card__action-btn pm-card__action-btn--primary" type="button" title="直接复制">
+                                                复制
+                                            </button>
+                                            <button class="pm-card__action-btn pm-card__action-btn--secondary" type="button" title="编辑后复制" data-view-target="edit-copy" data-prompt-title="营销创意生成器" data-prompt-note="为广告/推文生成多版本创意文案" data-prompt-content="请基于以下产品信息撰写多版本营销文案，突出卖点并包含明确的号召。">
+                                                编辑复制
+                                            </button>
+                                        </div>
+                                        <div class="pm-card__body" aria-live="polite">
+                                            <div class="pm-card__body-main">
+                                                <p class="pm-card__title">营销创意生成器</p>
+                                                <p class="pm-card__snippet">为广告/推文生成多版本创意文案</p>
+                                            </div>
+                                        </div>
+                                        <div class="pm-card__meta">
+                                            <button class="pm-icon-btn pm-icon-btn--surface pm-card__meta-icon" type="button" title="收藏到库" data-action="favorite-card">
+                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                <span class="sr-only">收藏到库</span>
+                                            </button>
+                                        </div>
+                                        <div class="pm-card__info-row">
+                                            <div class="pm-card__author">
+                                                <img class="pm-card__avatar" src="https://avatars.githubusercontent.com/u/6844498?v=4" alt="CopyCat Studio">
+                                                <span class="pm-card__author-name">CopyCat Studio</span>
+                                                <span class="pm-card__last-used">· 7 days ago</span>
+                                            </div>
+                                            <div class="pm-card__favorite" aria-label="收藏量">
+                                                <i class="fa-regular fa-star" aria-hidden="true"></i>
+                                                <span class="pm-card__favorite-count">74</span>
+                                            </div>
+                                        </div>
+                                    </article>
+                                </div>
+                            </div>
+
+                        </div>
+                        <div class="panel-footer">
+                            <div class="pm-tabbar" role="tablist" aria-label="Mode Picker">
+                                <button type="button" role="tab" aria-label="Tutorials" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="learn">
+                                    <i class="pm-tab__icon fas fa-book-open" aria-hidden="true"></i>
+                                    <span class="pm-tab__label">教材</span>
+                                </button>
+                                <button type="button" role="tab" aria-label="Home" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="home">
+                                    <i class="pm-tab__icon fas fa-house" aria-hidden="true"></i>
+                                    <span class="pm-tab__label">Home</span>
+                                </button>
+                                <button type="button" role="tab" aria-label="Find" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="find">
+                                    <i class="pm-tab__icon fas fa-magnifying-glass" aria-hidden="true"></i>
+                                    <span class="pm-tab__label">Find</span>
+                                </button>
+                                <button type="button" role="tab" aria-label="Me" aria-selected="true" aria-pressed="true" class="pm-tab is-active" data-view-target="me">
+                                    <i class="pm-tab__icon fas fa-user" aria-hidden="true"></i>
+                                    <span class="pm-tab__label">我的</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="pm-view" data-panel-view="social" hidden>
+                <div class="pm-view-shell">
+                    <div class="panel-content flex flex-col min-h-0 bg-white">
+                        <div class="panel-body px-3 pt-3 pb-0 flex flex-col min-h-0">
+                            <div id="panel-brand-bar" class="relative bg-white text-gray-900 select-none">
+                                <div class="px-0 pb-3">
+                                    <div class="chat-header-HO1Mrn">
+                                        <div class="chat-header-HO1Mrn__left">
+                                            <div class="chat-header-HO1Mrn__title chat-header-HO1Mrn__title--home">Social List</div>
+                                            <div class="chat-header-HO1Mrn__subtitle" data-social-subtitle> </div>
+                                        </div>
+                                        <div class="chat-header-HO1Mrn__right">
+                                            <button type="button" aria-label="返回" title="返回" class="inline-flex items-center justify-center w-9 h-9 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors" data-action="back-social">
+                                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                                    <path d="M19 12H5"></path>
+                                                    <path d="M12 19l-7-7 7-7"></path>
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="social-shell flex-1 min-h-0">
+                                <div class="social-seg-wrap">
+                                    <div class="pm-seg" data-social-seg>
+                                        <div class="pm-seg__slider" data-social-slider></div>
+                                        <button type="button" class="pm-seg__tab is-active" data-social-tab="following">关注</button>
+                                        <button type="button" class="pm-seg__tab" data-social-tab="followers">粉丝</button>
+                                    </div>
+                                </div>
+
+                                <div class="flex-1 min-h-0 overflow-y-auto pb-4">
+                                    <div class="social-list" data-social-list="following">
+                                        <div class="social-item">
+                                            <img class="social-avatar" src="https://avatars.githubusercontent.com/u/41582525?v=4" alt="Alice Studio">
+                                            <div class="social-main">
+                                                <div class="social-title">Alice Studio</div>
+                                                <div class="social-subtitle">128 Prompts | 3.4k 粉丝</div>
+                                            </div>
+                                            <div class="social-action">
+                                                <button type="button" class="social-pill" data-social-btn data-social-state="following">已关注</button>
+                                            </div>
+                                        </div>
+                                        <div class="social-item">
+                                            <img class="social-avatar" src="https://avatars.githubusercontent.com/u/1413542?v=4" alt="DataBuilder">
+                                            <div class="social-main">
+                                                <div class="social-title">DataBuilder</div>
+                                                <div class="social-subtitle">86 Prompts | 2.1k 粉丝</div>
+                                            </div>
+                                            <div class="social-action">
+                                                <button type="button" class="social-pill" data-social-btn data-social-state="following">已关注</button>
+                                            </div>
+                                        </div>
+                                        <div class="social-item">
+                                            <img class="social-avatar" src="https://avatars.githubusercontent.com/u/6844498?v=4" alt="UX Corner">
+                                            <div class="social-main">
+                                                <div class="social-title">UX Corner</div>
+                                                <div class="social-subtitle">54 Prompts | 980 粉丝</div>
+                                            </div>
+                                            <div class="social-action">
+                                                <button type="button" class="social-pill" data-social-btn data-social-state="following">已关注</button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div class="social-list hidden" data-social-list="followers">
+                                        <div class="social-item">
+                                            <img class="social-avatar" src="https://avatars.githubusercontent.com/u/1024025?v=4" alt="Maker Lab">
+                                            <div class="social-main">
+                                                <div class="social-title">Maker Lab</div>
+                                                <div class="social-subtitle">47 Prompts | 1.2k 粉丝</div>
+                                            </div>
+                                            <div class="social-action">
+                                                <button type="button" class="social-pill" data-social-btn data-social-state="follow-back">回关</button>
+                                            </div>
+                                        </div>
+                                        <div class="social-item">
+                                            <img class="social-avatar" src="https://avatars.githubusercontent.com/u/8396104?v=4" alt="CodeCat">
+                                            <div class="social-main">
+                                                <div class="social-title">CodeCat</div>
+                                                <div class="social-subtitle">63 Prompts | 2.8k 粉丝</div>
+                                            </div>
+                                            <div class="social-action">
+                                                <button type="button" class="social-pill" data-social-btn data-social-state="follow-back">回关</button>
+                                            </div>
+                                        </div>
+                                        <div class="social-item">
+                                            <img class="social-avatar" src="https://avatars.githubusercontent.com/u/41582525?v=4" alt="Writerly">
+                                            <div class="social-main">
+                                                <div class="social-title">Writerly</div>
+                                                <div class="social-subtitle">108 Prompts | 4.1k 粉丝</div>
+                                            </div>
+                                            <div class="social-action">
+                                                <button type="button" class="social-pill" data-social-btn data-social-state="follow-back">回关</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="panel-footer">
+                            <div class="pm-tabbar" role="tablist" aria-label="Mode Picker">
+                                <button type="button" role="tab" aria-label="Tutorials" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="learn">
+                                    <i class="pm-tab__icon fas fa-book-open" aria-hidden="true"></i>
+                                    <span class="pm-tab__label">教材</span>
+                                </button>
+                                <button type="button" role="tab" aria-label="Home" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="home">
+                                    <i class="pm-tab__icon fas fa-house" aria-hidden="true"></i>
+                                    <span class="pm-tab__label">Home</span>
+                                </button>
+                                <button type="button" role="tab" aria-label="Find" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="find">
+                                    <i class="pm-tab__icon fas fa-magnifying-glass" aria-hidden="true"></i>
+                                    <span class="pm-tab__label">Find</span>
+                                </button>
+                                <button type="button" role="tab" aria-label="Me" aria-selected="false" aria-pressed="false" class="pm-tab" data-view-target="me">
+                                    <i class="pm-tab__icon fas fa-user" aria-hidden="true"></i>
+                                    <span class="pm-tab__label">我的</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+            <section class="pm-view" data-panel-view="save" hidden>
+                <div class="pm-view-shell">
+                                    <div class="panel-content flex flex-col min-h-0">
+                                        <div class="panel-body px-3 flex flex-col min-h-0">
+                                            <div id="panel-brand-bar" class="relative bg-white text-gray-900 select-none">
+                                                <div class="px-0 py-2 border-b border-gray-100">
+                                                    <div class="chat-header-HO1Mrn">
+                                                        <div class="chat-header-HO1Mrn__left">
+                                                            <div class="chat-header-HO1Mrn__title">编辑面板</div>
+                                                            <div class="chat-header-HO1Mrn__subtitle">在这里完整编辑 Prompt 信息</div>
+                                                        </div>
+                                                        <div class="chat-header-HO1Mrn__right">
+                                                            <button type="button" aria-label="关闭面板" title="关闭" class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors" data-action="close-panel">
+                                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div class="flex-1 min-h-0 bg-white flex flex-col">
+                                                <div class="flex-1 min-h-0 px-0 pt-3 pb-3 animate-slideUp flex flex-col">
+                                                    <div class="space-y-3 flex flex-col flex-1 min-h-0">
+                                                        <div>
+                                                            <label class="block ty-label fw-medium text-gray-700 mb-1.5">标题 *</label>
+                                                            <input type="text" placeholder="AI 自动填充..." class="w-full h-9 px-3 ty-label rounded-lg border border-gray-300 bg-gray-50" value="代码审查助手">
+                                                        </div>
+                                                        <div>
+                                                            <label class="block ty-label fw-medium text-gray-700 mb-1.5">备注 / 使用说明</label>
+                                                            <textarea class="w-full min-h-[100px] max-h-[600px] px-3 py-2 ty-label rounded-lg border border-gray-300 bg-gray-50 resize-y" placeholder="填写该 Prompt 的使用场景、使用步骤、注意事项等…"></textarea>
+                                                        </div>
+                                                        <div>
+                                                            <label class="block ty-label fw-medium text-gray-700 mb-1.5">分类</label>
+                                                            <div class="pm-dropdown relative w-full" data-name="category" data-placeholder="选择分类...">
+                                                                <button type="button" class="w-full h-9 px-3 border border-gray-300 rounded-lg bg-white flex items-center justify-between text-gray-900" data-dropdown-trigger aria-expanded="false">
+                                                                    <span class="pm-dropdown-label text-xs">编程</span>
+                                                                    <i class="fas fa-chevron-down text-gray-500 text-sm"></i>
+                                                                </button>
+                                                                <div class="pm-dropdown__menu absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 overflow-hidden animate-fadeIn hidden" data-dropdown-menu>
+                                                                    <div class="py-0 max-h-[200px] overflow-y-auto">
+                                                                        <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center justify-between" data-value="全部" data-count="128">
+                                                                            <span class="text-gray-900">全部</span>
+                                                                            <span class="text-[11px] text-gray-400">128</span>
+                                                                        </button>
+                                                                        <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 bg-blue-50 flex items-center justify-between" data-value="编程" data-count="42">
+                                                                            <span class="text-blue-700 font-medium">编程</span>
+                                                                            <span class="text-[11px] text-blue-600">42</span>
+                                                                        </button>
+                                                                        <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center justify-between" data-value="写作" data-count="28">
+                                                                            <span class="text-gray-900">写作</span>
+                                                                            <span class="text-[11px] text-gray-400">28</span>
+                                                                        </button>
+                                                                        <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center justify-between" data-value="商务" data-count="18">
+                                                                            <span class="text-gray-900">商务</span>
+                                                                            <span class="text-[11px] text-gray-400">18</span>
+                                                                        </button>
+                                                                        <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center justify-between" data-value="营销" data-count="22">
+                                                                            <span class="text-gray-900">营销</span>
+                                                                            <span class="text-[11px] text-gray-400">22</span>
+                                                                        </button>
+                                                                        <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center justify-between" data-value="翻译" data-count="15">
+                                                                            <span class="text-gray-900">翻译</span>
+                                                                            <span class="text-[11px] text-gray-400">15</span>
+                                                                        </button>
+                                                                        <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-left text-xs hover:bg-gray-50 flex items-center justify-between" data-value="其他" data-count="3">
+                                                                            <span class="text-gray-900">其他</span>
+                                                                            <span class="text-[11px] text-gray-400">3</span>
+                                                                        </button>
+                                                                        <div class="border-t border-gray-200"></div>
+                                                                        <button type="button" class="pm-dropdown__option w-full px-3 py-2 text-xs bg-blue-50 hover:bg-blue-100 text-blue-600 font-semibold flex items-center justify-center" data-value="新建分类">
+                                                                            <span>新建分类</span>
+                                                                        </button>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div class="flex flex-col flex-1 min-h-0">
+                                                            <label class="block ty-label fw-medium text-gray-600 mb-1.5">Prompt 内容 *</label>
+                                                            <textarea class="w-full flex-1 min-h-0 px-3 py-2 ty-label rounded-lg border border-gray-300 bg-gray-50 resize-none" placeholder="输入您的 Prompt 内容...">你是一位资深的{{语言}}开发专家，请帮我审查以下代码,重点关注{{功能}}方面的问题：</textarea>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <div class="pt-2 border-t border-gray-200">
+                                                    <div class="flex items-center justify-between py-3">
+                                                        <div>
+                                                            <label class="block ty-label fw-medium text-gray-700">设置为私有</label>
+                                                            <p class="text-xs text-gray-500 mt-0.5">开启后仅自己可见，不公开到市场</p>
+                                                        </div>
+                                                        <label class="relative inline-flex items-center cursor-pointer ml-3">
+                                                            <input type="checkbox" class="sr-only peer toggle-checkbox">
+                                                            <div class="w-11 h-6 bg-gray-200 rounded-full peer peer-checked:bg-blue-500 toggle-label transition-colors">
+                                                                <div class="toggle-ball w-5 h-5 bg-white rounded-full shadow transform transition-transform translate-x-0.5 translate-y-0.5"></div>
+                                                            </div>
+                                                        </label>
+                                                    </div>
+                                                </div>
+                                                <div class="px-0 pt-1 pb-2" data-save-delete>
+                                                    <button type="button" class="w-full h-9 text-sm px-3 rounded-lg bg-red-500 text-white text-center">删除 Prompt</button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="px-3 py-3 border-t bg-gray-50 flex justify-center gap-3 flex-shrink-0">
+                                            <button class="w-32 px-6 py-2 border border-gray-200 bg-white text-gray-700 rounded-lg ty-label hover:bg-gray-50 transition-colors" data-view-target="home">取消</button>
+                                            <button class="w-32 px-6 py-2 bg-blue-600 text-white rounded-lg ty-label hover:bg-blue-700 transition-colors">保存</button>
+                                        </div>
+                                    </div>
+                </div>
+            </section>
+            <section class="pm-view" data-panel-view="edit-copy" hidden>
+                <div class="pm-view-shell">
+                                    <div class="panel-content flex flex-col min-h-0">
+                                        <div class="panel-body px-3 flex flex-col min-h-0">
+                                            <div id="panel-brand-bar" class="relative bg-white text-gray-900 select-none">
+                                                <div class="px-0 py-2 border-b border-gray-100">
+                                                    <div class="chat-header-HO1Mrn">
+                                                        <div class="chat-header-HO1Mrn__left">
+                                                            <div class="chat-header-HO1Mrn__title">编辑后复制</div>
+                                                            <div class="chat-header-HO1Mrn__subtitle">围绕当前版本的工作台 · 轻量定格与复制</div>
+                                                        </div>
+                                                        <div class="chat-header-HO1Mrn__right">
+                                                            <button type="button" aria-label="关闭面板" title="关闭" class="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-50 transition-colors" data-action="close-panel">
+                                                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                                                    <line x1="18" y1="6" x2="6" y2="18"></line>
+                                                                    <line x1="6" y1="6" x2="18" y2="18"></line>
+                                                                </svg>
+                                                            </button>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                            <div class="flex-1 min-h-0 bg-white flex flex-col gap-3">
+                                <div class="pt-3 px-0 animate-slideUp flex flex-col gap-3 flex-1 min-h-0">
+                                    <div class="border border-gray-300 bg-white rounded-2xl px-4 py-3 shadow-sm space-y-3">
+                                        <div>
+                                            <label class="block ty-label fw-medium text-gray-700 mb-1.5">标题（只读）</label>
+                                            <input type="text" class="w-full h-10 px-3 ty-label rounded-lg border border-gray-300 bg-gray-100 text-gray-700 cursor-not-allowed" value="" readonly data-edit-copy-title>
+                                                                        </div>
+                                        <div>
+                                            <label class="block ty-label fw-medium text-gray-700 mb-1.5">备注 / 使用说明（只读）</label>
+                                            <textarea class="w-full min-h-[80px] px-3 py-2 ty-label rounded-lg border border-gray-300 bg-gray-50 text-gray-700 cursor-not-allowed" readonly data-edit-copy-note></textarea>
+                                                                </div>
+                                                            </div>
+
+                                    <div class="flex flex-col gap-2 flex-1 min-h-0">
+                                        <!-- 原状态栏已移除，功能合并至 Composer Header -->
+
+                                        <div class="snapshot-composer">
+                                            <!-- 库模式：完整定格工作台 -->
+                                            <div class="composer-shell" data-freeze-shell>
+                                                <div class="composer-header is-collapsed" data-freeze-header>
+                                                    <div class="composer-toggle">
+                                                        <button type="button" class="composer-chevron" data-freeze-toggle aria-label="展开或收起快照列表">
+                                                            <i class="fa-solid fa-chevron-right" aria-hidden="true"></i>
+                                                        </button>
+                                                        <div class="composer-summary">
+                                                            <span data-freeze-count>0 定格</span>
+                                                            <span>·</span>
+                                                            <span data-freeze-active>当前：母本记录</span>
+                                                        </div>
+                                                    </div>
+                                                    <div class="composer-actions">
+                                                        <button
+                                                            type="button"
+                                                            class="composer-btn"
+                                                            data-action="reset-edit-copy"
+                                                            title="复位到当前位置原始内容"
+                                                            aria-label="复位到当前位置原始内容"
+                                                        >
+                                                            <span class="codicon codicon-discard"></span>
+                                                            <span style="margin-left:4px">复位</span>
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            class="composer-freeze-btn"
+                                                            data-action="freeze-current"
+                                                            title="定格"
+                                                            aria-label="定格"
+                                                        >
+                                                            定格
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div class="composer-body">
+                                                    <div class="composer-scroll" data-freeze-list data-freeze-container style="display: none;">
+                                                        <!-- 快照列表 -->
+                                                    </div>
+                                                </div>
+                                                <div class="composer-divider"></div>
+                                            </div>
+                                            <!-- 市场模式：轻量版，无定格 -->
+                                            <div class="composer-shell composer-shell--simple" data-freeze-shell-market style="display: none;">
+                                                <div class="composer-header composer-header--simple">
+                                                    <div class="composer-summary">
+                                                        <span class="status-dot" aria-hidden="true"></span>
+                                                        <span data-market-active-label>当前：母本</span>
+                                                    </div>
+                                                    <div class="composer-actions">
+                                                        <button
+                                                            type="button"
+                                                            class="composer-btn"
+                                                            data-action="reset-edit-copy"
+                                                            title="复位到当前位置原始内容"
+                                                            aria-label="复位到当前位置原始内容"
+                                                        >
+                                                            <span class="codicon codicon-discard"></span>
+                                                            <span style="margin-left:4px">复位</span>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div class="composer-editor-area">
+                                                <textarea
+                                                    id="edit-copy-textarea"
+                                                    class="ty-body"
+                                                    placeholder="在这里调整 Prompt，复制仅复制当前可见内容，不会生成记录"
+                                                    data-edit-copy-textarea
+                                                ></textarea>
+                                            </div>
+                                        </div>
+                                    </div>
+                                            </div>
+                                        </div>
+                                                </div>
+                        <div class="px-3 py-3 border-t bg-gray-50 flex justify-center gap-3 flex-shrink-0">
+                            <button class="w-32 px-6 py-2 border border-gray-200 bg-white text-gray-700 rounded-lg ty-label hover:bg-gray-50 transition-colors" data-view-target="home">取消</button>
+                            <button class="w-32 px-6 py-2 bg-blue-600 text-white rounded-lg ty-label hover:bg-blue-700 transition-colors" type="button" data-action="copy-edited-prompt">复制</button>
+                                        </div>
+                                    </div>
+                </div>
+            </section>
+        </div>
+        </div>
+
+    </aside>
+
+    <button class="pm-fab" type="button" data-action="toggle-panel" aria-controls="pm-panel" aria-expanded="false">
+        <span class="sr-only">打开或收起 Prompt Manager 面板</span>
+        <i class="fas fa-magic fab-icon-wand"></i>
+        <i class="fas fa-xmark fab-icon-close" aria-hidden="true"></i>
+    </button>
+
+    <script>
+        (function () {
+            const body = document.body;
+            const panel = document.getElementById('pm-panel');
+            const scrollContainer = document.querySelector('.pm-panel__scroll');
+            const fab = document.querySelector('[data-action="toggle-panel"]');
+            const resizer = document.querySelector('[data-panel-resizer]');
+            const root = document.documentElement;
+            const viewNodes = document.querySelectorAll('[data-panel-view]');
+            const viewButtons = document.querySelectorAll('[data-view-target]');
+            const closeButtons = document.querySelectorAll('[data-action="close-panel"]');
+            const MIN = 420;
+            const MAX = 1209;
+            let panelWidth = MIN;
+            let currentView = 'home';
+            let editCopyTimer = null;
+
+            const applyWidth = (value) => {
+                panelWidth = Math.min(MAX, Math.max(MIN, value));
+                root.style.setProperty('--pm-panel-width', panelWidth + 'px');
+            };
+
+            const setOpen = (open) => {
+                body.classList.toggle('panel-open', open);
+                const expanded = open ? 'true' : 'false';
+                if (fab) {
+                    fab.setAttribute('aria-expanded', expanded);
+                }
+                if (panel) {
+                    panel.setAttribute('aria-hidden', open ? 'false' : 'true');
+                }
+                ensureEditCopyTimer(open && currentView === 'edit-copy');
+            };
+
+            const ensureEditCopyTimer = (active) => {
+                if (!active) {
+                    if (editCopyTimer) {
+                        clearInterval(editCopyTimer);
+                        editCopyTimer = null;
+                    }
+                    return;
+                }
+                if (editCopyTimer) return;
+                editCopyTimer = window.setInterval(() => {
+                    if (currentView !== 'edit-copy' || !body.classList.contains('panel-open')) {
+                        return;
+                    }
+                    renderFreezeList();
+                }, 60000);
+            };
+
+            const socialState = {
+                activeTab: 'following',
+                originView: 'me'
+            };
+            const saveState = {
+                mode: 'edit'
+            };
+            const saveRefs = {
+                deleteWrap: document.querySelector('[data-save-delete]')
+            };
+
+            const setSaveMode = (mode = 'edit') => {
+                saveState.mode = mode === 'create' ? 'create' : 'edit';
+                if (saveRefs.deleteWrap) {
+                    saveRefs.deleteWrap.hidden = saveState.mode === 'create';
+                }
+            };
+
+            const setView = (view, options = {}) => {
+                if (!view || !viewNodes.length) {
+                    return;
+                }
+                // 设置编辑/新建模式
+                if (view === 'save') {
+                    setSaveMode(options.saveMode || 'edit');
+                }
+                // 记录来源视图（用于社交列表返回）
+                if (view === 'social' && options.originView) {
+                    socialState.originView = options.originView;
+                }
+                currentView = view;
+                viewNodes.forEach((node) => {
+                    const isActive = node.dataset.panelView === view;
+                    node.classList.toggle('is-active', isActive);
+                    node.toggleAttribute('hidden', !isActive);
+                });
+                viewButtons.forEach((btn) => {
+                    if (!btn.dataset.viewTarget) {
+                        return;
+                    }
+                    const matches = btn.dataset.viewTarget === view;
+                    if (btn.classList.contains('pm-tab')) {
+                        btn.classList.toggle('is-active', matches);
+                        btn.setAttribute('aria-selected', matches ? 'true' : 'false');
+                    }
+                });
+                if (scrollContainer) {
+                    scrollContainer.scrollTop = 0;
+                }
+                // 如果进入社交列表，按照传入的默认 tab 切换
+                if (view === 'social' && options.defaultTab) {
+                    setSocialTab(options.defaultTab);
+                }
+                if (view === 'edit-copy') {
+                    renderFreezeList();
+                }
+                ensureEditCopyTimer(view === 'edit-copy' && body.classList.contains('panel-open'));
+            };
+
+            if (fab) {
+                fab.addEventListener('click', () => {
+                    const nextState = !body.classList.contains('panel-open');
+                    setOpen(nextState);
+                    if (nextState) {
+                        setView(currentView);
+                    }
+                });
+            }
+
+            closeButtons.forEach((btn) => {
+                btn.addEventListener('click', () => setOpen(false));
+            });
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Escape') {
+                    setOpen(false);
+                }
+            });
+
+            const editCopyFields = {
+                title: document.querySelector('[data-edit-copy-title]'),
+                note: document.querySelector('[data-edit-copy-note]'),
+                content: document.querySelector('[data-edit-copy-textarea]')
+            };
+        const editCopyRefs = {
+                shell: document.querySelector('[data-freeze-shell]'),
+                shellMarket: document.querySelector('[data-freeze-shell-market]'),
+                version: document.querySelector('[data-edit-copy-version]'),
+                category: document.querySelector('[data-edit-copy-category]'),
+                location: document.querySelector('[data-edit-copy-location]'),
+                summary: document.querySelector('[data-edit-copy-summary]'),
+                list: document.querySelector('[data-freeze-list]'),
+                empty: document.querySelector('[data-freeze-empty]'),
+                container: document.querySelector('[data-freeze-container]'),
+                toggle: document.querySelector('[data-freeze-toggle]'),
+                header: document.querySelector('[data-freeze-header]'),
+                count: document.querySelector('[data-freeze-count]'),
+                activeLabel: document.querySelector('[data-freeze-active]'),
+                simpleActiveLabel: document.querySelector('[data-market-active-label]')
+            };
+            const editCopyState = {
+                version: 'v1（mock）',
+                category: '编程（mock）',
+                allowSnapshots: true,
+                nodes: [],
+                activeId: 'current',
+                collapsed: false,
+                snapshotCounter: 0 // 用于稳定记录定格版本号，删除不重排
+            };
+
+            const formatRelativeTime = (timestamp) => {
+                const now = Date.now();
+                const diff = Math.max(0, now - timestamp);
+                const minutes = Math.floor(diff / 60000);
+                const hours = Math.floor(diff / 3600000);
+                const days = Math.floor(diff / 86400000);
+                if (diff < 60000) return '刚刚';
+                if (minutes < 60) return `${minutes} 分钟前`;
+                if (hours < 24) return `${hours} 小时前`;
+                if (days < 30) return `${days} 天前`;
+                const months = Math.floor(days / 30);
+                return `${months} 个月前`;
+            };
+
+            const getActiveNode = () => editCopyState.nodes.find((node) => node.id === editCopyState.activeId);
+
+            const hydrateEditorFromNode = () => {
+                const node = getActiveNode();
+                if (!node) return;
+                if (editCopyFields.content) {
+                    editCopyFields.content.value = node.working || '';
+                }
+            };
+
+            const updateMetaDisplay = () => {
+                const node = getActiveNode();
+                if (editCopyRefs.version) {
+                    editCopyRefs.version.textContent = `版本：${editCopyState.version || 'v1（mock）'}`;
+                }
+                if (!node) {
+                    if (editCopyRefs.simpleActiveLabel) {
+                        editCopyRefs.simpleActiveLabel.textContent = '当前：—';
+                    }
+                    return;
+                }
+                // 在简化布局中不再需要展示位置信息/摘要
+                const label =
+                    node.type === 'current'
+                        ? '当前：母本'
+                        : `当前：${Number.isFinite(node.version) ? `记录${node.version}` : '定格'}`;
+                if (editCopyRefs.simpleActiveLabel) {
+                    editCopyRefs.simpleActiveLabel.textContent = label;
+                }
+            };
+
+            const renderFreezeList = () => {
+                if (editCopyState.allowSnapshots === false) {
+                    if (editCopyRefs.list) {
+                        editCopyRefs.list.innerHTML = '';
+                    }
+                    if (editCopyRefs.count) {
+                        editCopyRefs.count.textContent = '0 定格';
+                    }
+                    if (editCopyRefs.activeLabel) {
+                        editCopyRefs.activeLabel.textContent = '当前：母本';
+                    }
+                    return;
+                }
+                if (!editCopyRefs.list) return;
+                editCopyRefs.list.innerHTML = '';
+                const snapshots = editCopyState.nodes.filter((n) => n.type === 'snapshot');
+                if (editCopyRefs.count) {
+                    editCopyRefs.count.textContent = `${snapshots.length} 定格`;
+                }
+                if (editCopyRefs.activeLabel) {
+                    const node = getActiveNode();
+                    if (!node) {
+                        editCopyRefs.activeLabel.textContent = '当前：—';
+                    } else if (node.type === 'current') {
+                        editCopyRefs.activeLabel.textContent = '当前：母本';
+                    } else {
+                        const label = Number.isFinite(node.version) ? `记录${node.version}` : '定格';
+                    editCopyRefs.activeLabel.textContent = `当前：${label}`;
+                    }
+                }
+                if (editCopyRefs.empty) {
+                editCopyRefs.empty.style.display = snapshots.length === 0 && !editCopyState.collapsed ? 'flex' : 'none';
+                }
+                editCopyState.nodes.forEach((node) => {
+                    const isActive = node.id === editCopyState.activeId;
+                const row = document.createElement('button');
+                row.type = 'button';
+                row.className = `composer-item ${isActive ? 'is-active' : ''}`;
+                row.dataset.nodeId = node.id;
+
+                const icon = document.createElement('div');
+                icon.className = 'composer-item-icon';
+                if (isActive) {
+                    icon.innerHTML = '<span class="codicon codicon-check"></span>';
+                }
+                row.appendChild(icon);
+
+                const title = document.createElement('div');
+                title.className = 'composer-item-text';
+                title.textContent = node.type === 'current' ? '当前版本 · 母本' : (node.original || '').trim() || '（空内容）';
+                row.appendChild(title);
+
+                const meta = document.createElement('div');
+                meta.className = 'composer-item-meta';
+                const timeBadge = document.createElement('span');
+                timeBadge.className = `snapshot-pill ${node.type === 'current' ? 'snapshot-pill--current' : ''}`;
+                timeBadge.textContent = node.type === 'current'
+                    ? '母本'
+                    : formatRelativeTime(node.createdAt || Date.now());
+                meta.appendChild(timeBadge);
+
+                if (node.type === 'snapshot') {
+                    const sep = document.createElement('span');
+                    sep.className = 'snapshot-sep';
+                    sep.textContent = '·';
+                    meta.appendChild(sep);
+
+                    const del = document.createElement('button');
+                    del.type = 'button';
+                    del.className = 'composer-delete snapshot-delete';
+                    del.title = '删除这条定格';
+                    del.innerHTML = '<i class="fa-solid fa-xmark" aria-hidden="true"></i>';
+                    del.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                        deleteSnapshot(node.id);
+                    });
+                    meta.appendChild(del);
+                }
+
+                row.appendChild(meta);
+
+                row.addEventListener('click', () => {
+                    setActiveNode(node.id);
+                });
+
+                editCopyRefs.list.appendChild(row);
+                });
+            };
+
+            const setActiveNode = (id) => {
+                const exists = editCopyState.nodes.find((node) => node.id === id);
+                if (!exists) return;
+                editCopyState.activeId = id;
+                hydrateEditorFromNode();
+                updateMetaDisplay();
+                renderFreezeList();
+            };
+
+            const resetActiveNode = () => {
+                const node = getActiveNode();
+                if (!node) return;
+                node.working = node.original || '';
+                hydrateEditorFromNode();
+            };
+
+            const freezeCurrentNode = () => {
+                if (!editCopyState.allowSnapshots) {
+                    return;
+                }
+                const node = getActiveNode();
+                if (!node || !editCopyFields.content) return;
+                const text = (editCopyFields.content.value || '').trim();
+                if (!text) {
+                    alert('没有可定格的内容');
+                    return;
+                }
+                // 稳定版本号：使用递增计数，不因删除而回退
+                const nextVersion = (editCopyState.snapshotCounter || 0) + 1;
+                editCopyState.snapshotCounter = nextVersion;
+                const newNode = {
+                    id: `snap-${Date.now()}-${Math.random().toString(16).slice(2, 6)}`,
+                    type: 'snapshot',
+                    createdAt: Date.now(),
+                    version: nextVersion,
+                    original: text,
+                    working: text
+                };
+                editCopyState.nodes.push(newNode);
+                setActiveNode(newNode.id);
+            };
+
+            const deleteSnapshot = (id) => {
+                const idx = editCopyState.nodes.findIndex((node) => node.id === id && node.type === 'snapshot');
+                if (idx < 0) return;
+                const deletingActive = editCopyState.activeId === id;
+                editCopyState.nodes.splice(idx, 1);
+                if (deletingActive) {
+                    const fallback = editCopyState.nodes.find((node) => node.type === 'snapshot') || editCopyState.nodes.find((node) => node.id === 'current');
+                    if (fallback) {
+                        setActiveNode(fallback.id);
+                    }
+                }
+                renderFreezeList();
+            };
+
+            const initEditCopyWorkspace = (payload) => {
+                const {
+                    title = '',
+                    note = '',
+                    content = '',
+                    version = 'v1（mock）',
+                    category = '编程（mock）',
+                    allowSnapshots = true
+                } = payload || {};
+                editCopyState.version = version || 'v1（mock）';
+                editCopyState.category = category || '编程（mock）';
+                editCopyState.allowSnapshots = !!allowSnapshots;
+                editCopyState.snapshotCounter = 0;
+                editCopyState.nodes = [
+                    {
+                        id: 'current',
+                        type: 'current',
+                        createdAt: Date.now(),
+                        original: content || '',
+                        working: content || ''
+                    }
+                ];
+                editCopyState.activeId = 'current';
+                editCopyState.collapsed = false;
+                if (editCopyFields.title) {
+                    editCopyFields.title.value = title;
+                }
+                if (editCopyFields.note) {
+                    editCopyFields.note.value = note;
+                }
+                if (editCopyFields.content) {
+                    editCopyFields.content.placeholder = editCopyState.allowSnapshots
+                        ? '在这里调整 Prompt，可定格版本，复制仅复制当前可见内容'
+                        : '在这里调整 Prompt，复制仅复制当前可见内容，不会生成定格或记录';
+                }
+                hydrateEditorFromNode();
+                updateMetaDisplay();
+                renderFreezeList();
+                updateCollapseUI();
+            };
+
+            const updateCollapseUI = () => {
+                const { allowSnapshots, collapsed } = editCopyState;
+                if (editCopyRefs.shell) {
+                    editCopyRefs.shell.style.display = allowSnapshots ? '' : 'none';
+                }
+                if (editCopyRefs.shellMarket) {
+                    editCopyRefs.shellMarket.style.display = allowSnapshots ? 'none' : '';
+                }
+                if (!allowSnapshots) {
+                    return;
+                }
+                if (editCopyRefs.container) {
+                    editCopyRefs.container.style.display = collapsed ? 'none' : 'flex';
+                }
+                if (editCopyRefs.empty) {
+                    editCopyRefs.empty.style.display = collapsed ? 'none' : (editCopyState.nodes.some((n) => n.type === 'snapshot') ? 'none' : 'flex');
+                }
+                if (editCopyRefs.header) {
+                    editCopyRefs.header.classList.toggle('is-collapsed', collapsed);
+                }
+            };
+
+            if (editCopyRefs.toggle) {
+                editCopyRefs.toggle.addEventListener('click', () => {
+                    editCopyState.collapsed = !editCopyState.collapsed;
+                    updateCollapseUI();
+                });
+            }
+
+            const resetButtons = document.querySelectorAll('[data-action="reset-edit-copy"]');
+            resetButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    resetActiveNode();
+                });
+            });
+
+            const freezeButtons = document.querySelectorAll('[data-action="freeze-current"]');
+            freezeButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    freezeCurrentNode();
+                });
+            });
+
+            if (editCopyFields.content) {
+                editCopyFields.content.addEventListener('input', () => {
+                    const node = getActiveNode();
+                    if (!node) return;
+                    node.working = editCopyFields.content.value;
+                });
+            }
+
+            const copyButtons = document.querySelectorAll('[data-action="copy-edited-prompt"]');
+
+            copyButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const shell = btn.closest('.pm-view-shell');
+                    if (!shell) {
+                        return;
+                    }
+                    const textarea = shell.querySelector('[data-edit-copy-textarea]');
+                    if (!textarea) {
+                        return;
+                    }
+                    const text = textarea.value || '';
+                    if (!text.trim()) {
+                        alert('当前没有可复制的内容');
+                        return;
+                    }
+                    if (navigator.clipboard && navigator.clipboard.writeText) {
+                        navigator.clipboard.writeText(text).then(() => {
+                            alert('已复制到剪贴板');
+                        }).catch(() => {
+                            fallbackCopy(text);
+                        });
+                    } else {
+                        fallbackCopy(text);
+                    }
+                });
+            });
+
+            function fallbackCopy(text) {
+                const temp = document.createElement('textarea');
+                temp.value = text;
+                temp.style.position = 'fixed';
+                temp.style.opacity = '0';
+                document.body.appendChild(temp);
+                temp.select();
+                try {
+                    document.execCommand('copy');
+                    alert('已复制到剪贴板');
+                } catch (_error) {
+                    alert('复制失败，请手动复制');
+                } finally {
+                    document.body.removeChild(temp);
+                }
+            }
+
+            // 收藏：支持切换收藏/取消收藏，底部收藏区和右上角收藏按钮共享状态
+            const parseFavoriteCount = (text = '') => {
+                const raw = text.trim().toUpperCase();
+                if (!raw) return 0;
+                if (raw.endsWith('K')) {
+                    const num = parseFloat(raw.replace('K', ''));
+                    return Number.isFinite(num) ? Math.round(num * 1000) : 0;
+                }
+                const num = parseFloat(raw.replace(/,/g, ''));
+                return Number.isFinite(num) ? Math.round(num) : 0;
+            };
+
+            const formatFavoriteCount = (value) => {
+                if (!Number.isFinite(value) || value <= 0) return '0';
+                if (value >= 1000) {
+                    const kilo = value / 1000;
+                    const fixed = kilo >= 10 ? kilo.toFixed(0) : kilo.toFixed(1);
+                    return `${fixed.endsWith('.0') ? fixed.slice(0, -2) : fixed}K`;
+                }
+                return value.toString();
+            };
+
+            const setFavoriteVisual = (el, active) => {
+                if (!el) return;
+                el.classList.toggle('is-favorited', active);
+                const icon = el.querySelector('i');
+                if (icon) {
+                    icon.classList.toggle('fa-solid', active);
+                    icon.classList.toggle('fa-regular', !active);
+                }
+            };
+
+            const toggleFavoriteForCard = (card) => {
+                if (!card) return;
+                const countEl = card.querySelector('.pm-card__favorite-count');
+                const wasFavorited = card.dataset.favorited === '1';
+                const currentCount = parseFavoriteCount(countEl?.textContent || '0');
+                const nextFavorited = !wasFavorited;
+                const nextCount = Math.max(0, currentCount + (nextFavorited ? 1 : -1));
+                if (countEl) {
+                    countEl.textContent = formatFavoriteCount(nextCount);
+                }
+                card.dataset.favorited = nextFavorited ? '1' : '0';
+                setFavoriteVisual(card.querySelector('[data-action="favorite-card"]'), nextFavorited);
+                setFavoriteVisual(card.querySelector('.pm-card__favorite'), nextFavorited);
+            };
+
+            // 右上角收藏按钮
+            const favoriteButtons = document.querySelectorAll('[data-action="favorite-card"]');
+            favoriteButtons.forEach((btn) => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const card = btn.closest('.pm-card');
+                    toggleFavoriteForCard(card);
+                });
+            });
+
+            // 卡片底部收藏区域
+            const favoriteFooters = document.querySelectorAll('.pm-card__favorite');
+            favoriteFooters.forEach((footer) => {
+                footer.setAttribute('role', 'button');
+                footer.setAttribute('tabindex', '0');
+                footer.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const card = footer.closest('.pm-card');
+                    toggleFavoriteForCard(card);
+                });
+                footer.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        const card = footer.closest('.pm-card');
+                        toggleFavoriteForCard(card);
+                    }
+                });
+            });
+
+            // 作者区域可点击：跳转到“我的”视图并填充作者信息（模拟主页）
+            const meView = document.querySelector('[data-panel-view="me"]');
+            const meName = meView?.querySelector('[data-username-display]');
+            const meNameInput = meView?.querySelector('[data-username-input]');
+            const meAvatar = meView?.querySelector('.me-card__avatar-img');
+            const meFollowBtn = meView?.querySelector('[data-action="toggle-follow"]');
+            const meFollowLabel = meView?.querySelector('[data-follow-label]');
+            const collectionLabelEl = meView?.querySelector('[data-collection-label]');
+            const collectionIconEl = meView?.querySelector('[data-collection-icon]');
+            const selfProfile = {
+                name: meName?.textContent?.trim() || 'User',
+                avatarSrc: ''
+            };
+            const getInitials = (name = '') => {
+                const cleaned = name.trim();
+                if (!cleaned) return 'PM';
+                const parts = cleaned.split(/\s+/).filter(Boolean);
+                if (!parts.length) return 'PM';
+                if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+                return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+            };
+            const setProfileMode = ({ name, avatarSrc = '', isSelf }) => {
+                const displayName = name || selfProfile.name;
+                if (meName) {
+                    meName.textContent = displayName;
+                }
+                if (meNameInput) {
+                    meNameInput.value = displayName;
+                }
+                if (meAvatar) {
+                    meAvatar.textContent = getInitials(displayName);
+                    if (avatarSrc) {
+                        meAvatar.style.backgroundImage = `url(${avatarSrc})`;
+                        meAvatar.style.backgroundSize = 'cover';
+                        meAvatar.style.backgroundPosition = 'center';
+                    } else {
+                        meAvatar.style.backgroundImage = '';
+                    }
+                }
+                if (collectionLabelEl) {
+                    collectionLabelEl.textContent = isSelf ? '我的收藏' : `${displayName} 的库`;
+                }
+                if (collectionIconEl) {
+                    collectionIconEl.classList.remove('fa-bookmark', 'fa-folder-open');
+                    collectionIconEl.classList.add(isSelf ? 'fa-bookmark' : 'fa-folder-open');
+                }
+                if (meFollowBtn) {
+                    if (isSelf) {
+                        meFollowBtn.hidden = true;
+                        meFollowBtn.dataset.following = '0';
+                        meFollowBtn.classList.remove('is-following');
+                        if (meFollowLabel) meFollowLabel.textContent = '关注';
+                    } else {
+                        meFollowBtn.hidden = false;
+                        meFollowBtn.dataset.following = '0';
+                        meFollowBtn.classList.remove('is-following');
+                        if (meFollowLabel) meFollowLabel.textContent = '关注';
+                    }
+                }
+            };
+            const goAuthorProfile = (authorEl) => {
+                if (!authorEl) return;
+                const card = authorEl.closest('.pm-card');
+                const name = authorEl.querySelector('.pm-card__author-name')?.textContent?.trim() || 'User';
+                const avatarSrc = authorEl.querySelector('.pm-card__avatar')?.getAttribute('src') || '';
+                setView('me');
+                if (!body.classList.contains('panel-open')) {
+                    setOpen(true);
+                }
+                setProfileMode({ name, avatarSrc, isSelf: false });
+                // 预留：如有作者主页链接可放在 data-author-profile 上打开新标签
+                const profileUrl = authorEl.dataset.authorProfile;
+                if (profileUrl) {
+                    window.open(profileUrl, '_blank', 'noopener,noreferrer');
+                }
+            };
+            const authorBlocks = document.querySelectorAll('.pm-card__author');
+            authorBlocks.forEach((author) => {
+                author.setAttribute('role', 'button');
+                author.setAttribute('tabindex', '0');
+                author.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    goAuthorProfile(author);
+                });
+                author.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        goAuthorProfile(author);
+                    }
+                });
+            });
+
+            if (meFollowBtn) {
+                meFollowBtn.addEventListener('click', () => {
+                    const following = meFollowBtn.dataset.following === '1';
+                    const next = !following;
+                    meFollowBtn.dataset.following = next ? '1' : '0';
+                    meFollowBtn.classList.toggle('is-following', next);
+                    if (meFollowLabel) {
+                        meFollowLabel.textContent = next ? '已关注' : '关注';
+                    }
+                });
+            }
+
+            // Find 视图：过滤 + 排序（Latest / Popular）
+            const findView = document.querySelector('[data-panel-view="find"]');
+            if (findView) {
+                // 排序下拉
+                const sortTrigger = findView.querySelector('[data-find-sort-trigger]');
+                const sortMenu = findView.querySelector('[data-find-sort-menu]');
+                const sortLabel = findView.querySelector('[data-find-sort-label]');
+                const sortOptions = findView.querySelectorAll('[data-sort-option]');
+
+                if (sortTrigger && sortMenu && sortOptions.length) {
+                    const closeSortMenu = () => {
+                        sortMenu.classList.add('hidden');
+                    };
+
+                    sortTrigger.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        sortMenu.classList.toggle('hidden');
+                    });
+
+                    sortOptions.forEach((opt) => {
+                        opt.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            const value = opt.dataset.sortOption || 'latest';
+                            if (sortLabel) {
+                                sortLabel.textContent = value === 'popular' ? '排序：最热' : '排序：最新';
+                            }
+                            sortTrigger.dataset.sortValue = value;
+                            closeSortMenu();
+                        });
+                    });
+
+                    document.addEventListener('click', (e) => {
+                        if (!sortMenu.contains(e.target) && !sortTrigger.contains(e.target)) {
+                            closeSortMenu();
+                        }
+                    });
+                }
+
+                // 过滤（分类）下拉
+                const filterTrigger = findView.querySelector('[data-find-filter-trigger]');
+                const filterMenu = findView.querySelector('[data-find-filter-menu]');
+                const filterLabel = findView.querySelector('[data-find-filter-label]');
+                const filterOptions = findView.querySelectorAll('[data-filter-option]');
+
+                if (filterTrigger && filterMenu && filterLabel && filterOptions.length) {
+                    const closeFilterMenu = () => {
+                        filterMenu.classList.add('hidden');
+                    };
+
+                    filterTrigger.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        filterMenu.classList.toggle('hidden');
+                    });
+
+                    filterOptions.forEach((opt) => {
+                        opt.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            // 高亮当前
+                            filterOptions.forEach((o) => o.classList.remove('bg-blue-50'));
+                            opt.classList.add('bg-blue-50');
+                            const value = opt.dataset.filterOption || '全部';
+                            filterLabel.textContent = '过滤：' + value;
+                            closeFilterMenu();
+                        });
+                    });
+
+                    document.addEventListener('click', (e) => {
+                        if (!filterMenu.contains(e.target) && !filterTrigger.contains(e.target)) {
+                            closeFilterMenu();
+                        }
+                    });
+                }
+            }
+
+            // 简单下拉（分类）交互
+            // 初始化个人视图为“自己”
+            setProfileMode({ name: selfProfile.name, avatarSrc: selfProfile.avatarSrc, isSelf: true });
+
+            const dropdowns = document.querySelectorAll('.pm-dropdown');
+            dropdowns.forEach((dropdown) => {
+                const trigger = dropdown.querySelector('[data-dropdown-trigger]');
+                const menu = dropdown.querySelector('[data-dropdown-menu]');
+                const label = dropdown.querySelector('.pm-dropdown-label');
+                const options = dropdown.querySelectorAll('.pm-dropdown__option');
+                if (!trigger || !menu) return;
+
+                const closeAll = () => {
+                    menu.classList.add('hidden');
+                    trigger.setAttribute('aria-expanded', 'false');
+                };
+
+                trigger.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isOpen = !menu.classList.contains('hidden');
+                    document.querySelectorAll('.pm-dropdown__menu').forEach((el) => el.classList.add('hidden'));
+                    document.querySelectorAll('[data-dropdown-trigger]').forEach((btn) => btn.setAttribute('aria-expanded', 'false'));
+                    if (!isOpen) {
+                        menu.classList.remove('hidden');
+                        trigger.setAttribute('aria-expanded', 'true');
+                    }
+                });
+
+                options.forEach((opt) => {
+                    opt.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        options.forEach((o) => o.classList.remove('bg-blue-50'));
+                        opt.classList.add('bg-blue-50');
+                        const value = opt.dataset.value || opt.textContent.trim();
+                        if (label && value) {
+                            label.textContent = value;
+                        }
+                        closeAll();
+                    });
+                });
+
+                document.addEventListener('click', (e) => {
+                    if (!dropdown.contains(e.target)) {
+                        closeAll();
+                    }
+                });
+            });
+
+
+            // Me 视图：用户名可编辑（点击铅笔 -> 输入框）
+            const usernameUI = {
+                display: document.querySelector('[data-username-display]'),
+                input: document.querySelector('[data-username-input]'),
+                editBtn: document.querySelector('[data-username-edit]')
+            };
+
+            if (usernameUI.display && usernameUI.input && usernameUI.editBtn) {
+                const enterEdit = () => {
+                    usernameUI.input.value = (usernameUI.display.textContent || '').trim();
+                    usernameUI.display.style.display = 'none';
+                    usernameUI.input.hidden = false;
+                    usernameUI.input.focus();
+                    usernameUI.input.select();
+                };
+
+                const commit = () => {
+                    const next = (usernameUI.input.value || '').trim();
+                    if (next) {
+                        usernameUI.display.textContent = next;
+                    }
+                    usernameUI.input.hidden = true;
+                    usernameUI.display.style.display = '';
+                };
+
+                const cancel = () => {
+                    usernameUI.input.hidden = true;
+                    usernameUI.display.style.display = '';
+                };
+
+                usernameUI.editBtn.addEventListener('click', enterEdit);
+
+                usernameUI.input.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        commit();
+                    } else if (event.key === 'Escape') {
+                        event.preventDefault();
+                        cancel();
+                    }
+                });
+
+                usernameUI.input.addEventListener('blur', commit);
+            }
+
+            viewButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const target = btn.dataset.viewTarget;
+                    if (!target) {
+                        return;
+                    }
+                    const options = {};
+                    if (target === 'me' && btn.classList.contains('pm-tab')) {
+                        setProfileMode({ name: selfProfile.name, avatarSrc: selfProfile.avatarSrc, isSelf: true });
+                    }
+                    if (target === 'edit-copy') {
+                        const fromHome = !!btn.closest('[data-panel-view="home"]');
+                        initEditCopyWorkspace({
+                            title: btn.dataset.promptTitle || '',
+                            note: btn.dataset.promptNote || '',
+                            content: btn.dataset.promptContent || '',
+                            version: btn.dataset.promptVersion || 'v1（mock）',
+                            category: btn.dataset.promptCategory || '编程（mock）',
+                            allowSnapshots: fromHome
+                        });
+                    }
+                    if (target === 'save') {
+                        options.saveMode = btn.dataset.saveMode || 'edit';
+                    }
+                    setView(target, options);
+                    if (!body.classList.contains('panel-open')) {
+                        setOpen(true);
+                    }
+                });
+            });
+
+            // 关注/粉丝列表：切换与入口
+            const socialSeg = document.querySelector('[data-social-seg]');
+            const socialSlider = document.querySelector('[data-social-slider]');
+            const socialTabs = document.querySelectorAll('[data-social-tab]');
+            const socialLists = document.querySelectorAll('[data-social-list]');
+            const socialSubtitle = document.querySelector('[data-social-subtitle]');
+            const socialButtons = document.querySelectorAll('[data-social-btn]');
+
+            const SOCIAL_LABELS = {
+                following: '已关注',
+                'follow-back': '回关',
+                unfollow: '关注'
+            };
+
+            const updateSocialBtn = (btn, state) => {
+                const label = SOCIAL_LABELS[state] || '关注';
+                btn.dataset.socialState = state;
+                btn.textContent = label;
+            };
+
+            const nextSocialState = (current) => {
+                if (current === 'following') return 'unfollow';
+                if (current === 'unfollow') return 'following';
+                if (current === 'follow-back') return 'following';
+                return 'following';
+            };
+
+            const setSocialTab = (tab = 'following') => {
+                socialState.activeTab = tab;
+                // 切换 tab 样式
+                socialTabs.forEach((t) => {
+                    const isActive = t.dataset.socialTab === tab;
+                    t.classList.toggle('is-active', isActive);
+                });
+                // 切换列表可见性
+                socialLists.forEach((list) => {
+                    const match = list.dataset.socialList === tab;
+                    list.classList.toggle('hidden', !match);
+                });
+                // 移动 slider
+                if (socialSlider) {
+                    const activeIndex = tab === 'followers' ? 1 : 0;
+                    socialSlider.style.transform = `translateX(calc(${activeIndex} * 100%))`;
+                }
+                // 副标题
+                if (socialSubtitle) {
+                    socialSubtitle.textContent = tab === 'followers' ? '粉丝列表' : '关注列表';
+                }
+            };
+
+            socialTabs.forEach((tabBtn) => {
+                tabBtn.addEventListener('click', () => {
+                    const tab = tabBtn.dataset.socialTab || 'following';
+                    setSocialTab(tab);
+                });
+            });
+
+            socialButtons.forEach((btn) => {
+                btn.addEventListener('click', () => {
+                    const current = btn.dataset.socialState || 'following';
+                    const next = nextSocialState(current);
+                    updateSocialBtn(btn, next);
+                });
+            });
+
+            const statItems = document.querySelectorAll('.me-card__stats .me-stat-item');
+            statItems.forEach((item) => {
+                item.style.cursor = 'pointer';
+                item.addEventListener('click', () => {
+                    const label = (item.querySelector('.me-stat-label')?.textContent || '').trim();
+                    const isFollowers = label.includes('粉丝');
+                    const defaultTab = isFollowers ? 'followers' : 'following';
+                    setView('social', { defaultTab, originView: currentView });
+                    if (!body.classList.contains('panel-open')) {
+                        setOpen(true);
+                    }
+                });
+                item.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        item.click();
+                    }
+                });
+                item.setAttribute('tabindex', '0');
+                item.setAttribute('role', 'button');
+            });
+
+            const backSocialBtn = document.querySelector('[data-action="back-social"]');
+            if (backSocialBtn) {
+                backSocialBtn.addEventListener('click', () => {
+                    setView(socialState.originView || 'me');
+                });
+            }
+
+            if (resizer) {
+                let resizing = false;
+
+                const handlePointerMove = (event) => {
+                    if (!resizing) return;
+                    const nextWidth = window.innerWidth - event.clientX;
+                    applyWidth(nextWidth);
+                };
+
+                const stopResize = (event) => {
+                    if (!resizing) return;
+                    resizing = false;
+                    body.classList.remove('panel-resizing');
+                    try {
+                        resizer.releasePointerCapture(event.pointerId);
+                    } catch (_error) {
+                        // ignore
+                    }
+                    window.removeEventListener('pointermove', handlePointerMove);
+                    window.removeEventListener('pointerup', stopResize);
+                };
+
+                resizer.addEventListener('pointerdown', (event) => {
+                    if (!body.classList.contains('panel-open')) return;
+                    resizing = true;
+                    body.classList.add('panel-resizing');
+                    resizer.setPointerCapture(event.pointerId);
+                    window.addEventListener('pointermove', handlePointerMove);
+                    window.addEventListener('pointerup', stopResize);
+                    event.preventDefault();
+                });
+            }
+
+            window.addEventListener('resize', () => {
+                const viewportWidth = window.innerWidth;
+                if (panelWidth > viewportWidth) {
+                    applyWidth(Math.max(MIN, viewportWidth - 32));
+                }
+            });
+
+            applyWidth(panelWidth);
+            setView(currentView);
+            setOpen(false);
+        })();
+    </script>
+</body>
+</html>
+
+
+
+
+
+

@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>Prompt Manager • Popup Demo</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    /* 舞台：灰背景 + 居中模拟 popup */
+    :root {
+      --pm-demo-popup-w: 400px;
+      --pm-demo-popup-h: 600px;
+      --pm-demo-stage: #f3f4f6;
+      --pm-demo-frame: #111827;
+      --pm-demo-frame-border: rgba(15, 23, 42, 0.14);
+      --pm-demo-frame-shadow: 0 26px 65px rgba(15, 23, 42, 0.18);
+      --pm-demo-radius: 0px;
+      --pm-fox-h: 300px;
+
+      /* 供 popup.html 的 auth-card 体系使用（保持现状） */
+      --pm-width: 360px;
+      --pm-shadow: 0 12px 32px rgba(0,0,0,0.12);
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      background: var(--pm-demo-stage);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Helvetica Neue", Arial, sans-serif;
+    }
+
+    .stage {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .popup-frame {
+      width: var(--pm-demo-popup-w);
+      height: var(--pm-demo-popup-h);
+      background: var(--pm-demo-frame);
+      border-radius: var(--pm-demo-radius);
+      box-shadow: var(--pm-demo-frame-shadow);
+      border: 1px solid var(--pm-demo-frame-border);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .popup-shell {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .screen { flex: 1; display: none; min-height: 0; }
+    .screen.is-active { display: flex; flex-direction: column; }
+
+    /* ====== MetaMask 未登入页：用原 DOM + 最小 CSS 映射实现 1:1 视觉/布局 ====== */
+    .mm-root {
+      width: 100%;
+      height: 100%;
+      background: #0b0f16;
+      color: #fff;
+      overflow: hidden;
+    }
+
+    .mm-box { box-sizing: border-box; }
+    .mm-box--display-flex { display: flex; }
+    .mm-box--display-inline-flex { display: inline-flex; }
+    .mm-box--flex-direction-column { flex-direction: column; }
+    .mm-box--justify-content-center { justify-content: center; }
+    .mm-box--align-items-center { align-items: center; }
+    .mm-box--width-full { width: 100%; }
+    .mm-box--margin-0 { margin: 0; }
+    .mm-box--margin-bottom-0 { margin-bottom: 0; }
+    .mm-box--margin-bottom-4 { margin-bottom: 16px; }
+    .mm-box--margin-bottom-6 { margin-bottom: 24px; }
+    .mm-box--padding-0 { padding: 0; }
+    .mm-box--padding-4 { padding: 16px; }
+    .mm-box--padding-right-0 { padding-right: 0; }
+    .mm-box--padding-left-0 { padding-left: 0; }
+    .mm-box--padding-right-4 { padding-right: 16px; }
+    .mm-box--padding-left-4 { padding-left: 16px; }
+    .mm-box--padding-bottom-12 { padding-bottom: 48px; }
+
+    .mm-box--background-color-background-default { background: #0b0f16; }
+    .mm-box--background-color-transparent { background: transparent; }
+
+    .mm-box--color-text-default { color: #e5e7eb; }
+    .mm-box--color-primary-default { color: #6aa9ff; }
+    .mm-box--color-icon-inverse { color: #ffffff; }
+    .mm-box--background-color-icon-default { background: #2b3240; }
+
+    .mm-box--rounded-lg { border-radius: 12px; }
+    .mm-box--rounded-xl { border-radius: 14px; }
+    .mm-box--border-width-1 { border-width: 1px; }
+    .box--border-style-solid { border-style: solid; }
+
+    .main-container-wrapper {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 未登录页：撑满高度，便于底部元素沉底；作为 fox 定位参照 */
+    .pm-unlock-layout {
+      height: 100%;
+      position: relative;
+    }
+    .unlock-page { flex: 1; }
+
+    /* 未登录页栈：撑满、留内边距，底部可沉 */
+    .pm-unlock-stack {
+      flex: 1;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding-top: 32px;
+      padding-bottom: calc(32px + var(--pm-fox-h));
+    }
+    .pm-unlock-stack__main {
+      margin: auto 0;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .pm-unlock-stack__footer {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+    }
+
+    /* fox 从文档流移出，避免挤压表单高度 */
+    .pm-unlock-layout .riv-animation__fox-container {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      margin: 0;
+      padding: 0;
+      pointer-events: none;
+    }
+
+    /* 主布局：上半表单 + 下半 fox canvas（保持 400×600） */
+    .unlock-page {
+      width: 100%;
+      max-width: 360px;
+    }
+
+    .unlock-page__mascot-container {
+      margin-bottom: 8px;
+      user-select: none;
+    }
+
+    .unlock-page__mascot-container__horizontal-logo--popup {
+      display: block;
+      margin: 0 auto;
+    }
+
+    /* 输入框（尽量贴近 MetaMask） */
+    .mm-text-field {
+      width: 100%;
+      height: 52px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: rgba(17, 24, 39, 0.55);
+      backdrop-filter: blur(6px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
+    }
+
+    .mm-text-field--truncate { overflow: hidden; }
+    .mm-text-field__input {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      outline: none;
+      background: transparent;
+      color: #e5e7eb;
+      font-size: 14px;
+    }
+
+    .mm-text-field__input::placeholder {
+      color: rgba(226, 232, 240, 0.55);
+    }
+
+    .mm-input--disable-state-styles:focus { outline: none; }
+
+    /* 按钮（Unlock 同款尺寸/圆角/禁用态） */
+    .mm-button-base {
+      border: 0;
+      outline: none;
+      cursor: pointer;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .mm-button-base--block { width: 100%; }
+    .mm-button-base--size-lg { height: 48px; }
+    .mm-button-primary {
+      background: #3b82f6;
+      border-radius: 14px;
+      box-shadow: 0 14px 28px rgba(59, 130, 246, 0.22);
+    }
+    .mm-button-primary:hover { filter: brightness(1.04); }
+    .mm-button-primary--disabled,
+    .mm-button-base--disabled {
+      background: #2b3240 !important;
+      color: rgba(255,255,255,0.7) !important;
+      cursor: not-allowed !important;
+      box-shadow: none !important;
+      opacity: 1;
+    }
+
+    .mm-text { font-size: 14px; }
+    .mm-text--body-md { font-size: 14px; }
+    .mm-text--body-md-medium { font-size: 14px; font-weight: 600; }
+
+    .mm-button-link {
+      background: transparent;
+      color: #6aa9ff;
+      cursor: pointer;
+      border: 0;
+      padding: 0;
+    }
+
+    /* fox canvas 区域占位（保持 400×300 位置） */
+    .riv-animation__fox-container {
+      width: 100%;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      padding-top: 8px;
+      margin-top: -6px;
+      user-select: none;
+    }
+    .riv-animation__canvas {
+      width: 400px;
+      height: 300px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(60% 60% at 50% 40%, rgba(59,130,246,0.22), rgba(11,15,22,0.0) 68%);
+    }
+
+    /* ====== 已登入页：复用 popup.html 的 U-1 结构 ====== */
+    .screen--in {
+      background: #f8fafc;
+      color: #0f172a;
+      overflow: hidden;
+    }
+    .in-scroll {
+      flex: 1;
+      overflow: auto;
+      padding: 16px;
+      min-height: 0;
+      background: #f8fafc;
+    }
+    /* popup.html 里的 toggle 动画 */
+    .toggle-checkbox:checked + .toggle-label .toggle-ball { transform: translate(22px, 2px); }
+
+    /* ====== 布局修正：保证未登录页元素“全页中心 + 底部” ====== */
+    /* 补齐高度链路，避免内容被挤到顶部 */
+    .mm-root,
+    .mm-root .app,
+    .mm-root .main-container-wrapper,
+    .mm-root .pm-unlock-layout {
+      height: 100%;
+    }
+
+    /* 建立层级，主内容在上，fox 在下 */
+    .pm-unlock-layout { position: relative; }
+    .pm-unlock-layout .unlock-page {
+      position: relative;
+      z-index: 2;
+      height: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    .pm-unlock-layout .riv-animation__fox-container { z-index: 1; }
+
+    /* 主内容强制全页中央，footer 贴底，与 fox 解耦 */
+    .pm-unlock-stack {
+      position: relative;
+      height: 100%;
+      padding: 0;
+    }
+    .pm-unlock-stack__main {
+      position: absolute;
+      top: 50%;
+      left: 0;
+      right: 0;
+      transform: translateY(-50%);
+      margin: 0;
+      width: 100%;
+    }
+    .pm-unlock-stack__footer {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 16px;
+      margin: 0;
+      display: flex;
+      justify-content: center;
+      padding: 0 16px;
+    }
+
+    /* 底部条款文案（对齐示例的 link-btn 视觉） */
+    .pm-legal {
+      color: #9ca3af;
+      font-size: 12px;
+      line-height: 18px;
+      text-align: center;
+      display: inline-flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      justify-content: center;
+    }
+    .pm-legal__link {
+      color: #6aa9ff;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      padding: 0;
+      transition: color 0.15s ease;
+    }
+    .pm-legal__link:hover {
+      color: #8bbdff;
+    }
+
+    /* 语言切换（左上角，仿 shadcn/radix dropdown 风格） */
+    .pm-lang-switch {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 4;
+      user-select: none;
+    }
+    .pm-lang-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      background: rgba(255, 255, 255, 0.06);
+      color: #e5e7eb;
+      font-size: 14px;
+      font-weight: 500;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+    }
+    .pm-lang-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.3);
+    }
+    .pm-lang-btn:focus-visible {
+      outline: none;
+      border-color: rgba(59, 130, 246, 0.8);
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.25);
+    }
+    .pm-lang-icon,
+    .pm-lang-caret {
+      width: 16px;
+      height: 16px;
+      color: #cbd5e1;
+      flex-shrink: 0;
+      display: block; /* 避免 inline SVG 基线带来的上下偏移 */
+    }
+    .pm-lang-current {
+      font-size: 14px;
+      line-height: 1;
+      display: inline-flex;
+      align-items: center;
+      transform: translateY(0.5px); /* 微调 emoji 基线，让与 SVG 视觉居中 */
+    }
+
+    /* ====== 现代设置页重构样式 ====== */
+    .pm-settings-page {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      background: #f8fafc;
+      min-height: 100%;
+      width: 100%;
+      flex: 1 1 auto;
+      min-height: 0;
+    }
+    
+    /* 顶部 Hero 区域：侧边面板入口 */
+    .pm-hero-section {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #bfdbfe;
+    }
+    .pm-hero-text h2 {
+      margin: 0 0 4px 0;
+      font-size: 18px;
+      font-weight: 700;
+      color: #1e3a8a;
+    }
+    .pm-hero-text p {
+      margin: 0;
+      font-size: 13px;
+      color: #3b82f6;
+    }
+    .pm-hero-btn {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 50%;
+      width: 48px;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+      cursor: pointer;
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .pm-hero-btn:hover { transform: scale(1.1); }
+    .pm-hero-btn:active { transform: scale(0.95); }
+
+    /* 中间设置组：FAB */
+    .pm-section-title {
+      padding: 24px 24px 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .pm-setting-group {
+      background: #fff;
+      border-top: 1px solid #e2e8f0;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .pm-setting-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .pm-setting-row:last-child { border-bottom: none; }
+    
+    .pm-label-main {
+      font-size: 15px;
+      font-weight: 500;
+      color: #334155;
+      display: block;
+      margin-bottom: 2px;
+    }
+    .pm-label-sub {
+      font-size: 13px;
+      color: #64748b;
+      display: block;
+    }
+
+    /* 底部状态：User Profile & Usage */
+    .pm-user-card {
+      padding: 16px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .pm-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      background: #e2e8f0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #64748b;
+      font-size: 20px;
+    }
+    .pm-user-info h3 {
+      margin: 0 0 2px 0;
+      font-size: 16px;
+      font-weight: 600;
+      color: #0f172a;
+    }
+    .pm-user-info p {
+      margin: 0;
+      font-size: 13px;
+      color: #64748b;
+    }
+    
+    .pm-usage-bar-container {
+      padding: 0 24px 24px;
+    }
+    .pm-usage-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #475569;
+    }
+    .pm-usage-track {
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .pm-usage-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #3b82f6, #0ea5e9);
+      border-radius: 4px;
+    }
+    .pm-lang-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      min-width: 150px;
+      background: #0f172a;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 6px;
+      box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35);
+      overflow: hidden;
+    }
+    .pm-lang-menu[hidden] { display: none; }
+    .pm-lang-item {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 0;
+      background: transparent;
+      color: #e5e7eb;
+      font-size: 13px;
+      font-weight: 500;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: left;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .pm-lang-item:hover,
+    .pm-lang-item:focus-visible {
+      outline: none;
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+    }
+    .pm-lang-flag {
+      display: inline-flex;
+      width: 16px;
+      justify-content: center;
+    }
+
+    /* Promhub wordmark（临时占位：后续可替换为正式 SVG） */
+    .pm-wordmark{
+      height: 30px;
+      line-height: 30px;
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
+      color: #fff;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <div class="popup-frame" aria-label="Popup 模拟窗口（400×600）">
+      <div class="popup-shell">
+        <!-- 未登录页：MetaMask 参考 1:1（文案仅替换登录按钮） -->
+        <div class="screen is-active" data-screen="logged-out">
+          <div class="mm-root" id="app-content" dir="ltr" data-theme="dark">
+            <div class="app os-win browser-chrome">
+              <div class="mm-box main-container-wrapper">
+                <div class="mm-box pm-unlock-layout mm-box--display-flex mm-box--flex-direction-column mm-box--justify-content-center mm-box--align-items-center mm-box--width-full mm-box--background-color-background-default">
+                  <div class="pm-lang-switch" data-lang-root>
+                    <button class="pm-lang-btn" type="button" aria-haspopup="menu" aria-expanded="false" data-lang-trigger>
+                      <svg xmlns="http://www.w3.org/2000/svg" class="pm-lang-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+                        <path d="M2 12h20"></path>
+                      </svg>
+                      <span class="pm-lang-current" data-lang-current>🇺🇸</span>
+                      <svg xmlns="http://www.w3.org/2000/svg" class="pm-lang-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="m6 9 6 6 6-6"></path>
+                      </svg>
+                    </button>
+                    <div class="pm-lang-menu" role="menu" hidden data-lang-menu>
+                      <button class="pm-lang-item" type="button" role="menuitem" data-lang-value="en" data-lang-flag="🇺🇸">
+                        <span class="pm-lang-flag">🇺🇸</span>
+                        <span>English</span>
+                      </button>
+                      <button class="pm-lang-item" type="button" role="menuitem" data-lang-value="zh" data-lang-flag="🇨🇳">
+                        <span class="pm-lang-flag">🇨🇳</span>
+                        <span>中文</span>
+                      </button>
+                      <button class="pm-lang-item" type="button" role="menuitem" data-lang-value="jp" data-lang-flag="🇯🇵">
+                        <span class="pm-lang-flag">🇯🇵</span>
+                        <span>日本語</span>
+                      </button>
+                    </div>
+                  </div>
+                  <form class="mm-box unlock-page mm-box--padding-4 mm-box--display-flex mm-box--flex-direction-column mm-box--align-items-center mm-box--width-full" data-testid="unlock-page" autocomplete="on">
+                    <div class="mm-box mm-box--display-flex mm-box--flex-direction-column mm-box--align-items-center mm-box--width-full pm-unlock-stack">
+                      <div class="pm-unlock-stack__main">
+                        <div class="mm-box unlock-page__mascot-container mm-box--margin-bottom-0 mm-box--display-flex mm-box--justify-content-center mm-box--width-full">
+                          <div class="pm-wordmark" aria-label="Promhub">Promhub</div>
+                        </div>
+
+                        <button class="mm-box mm-text mm-button-base mm-button-base--size-lg mm-button-base--block mm-button-primary mm-text--body-md-medium mm-box--margin-bottom-6 mm-box--padding-0 mm-box--padding-right-4 mm-box--padding-left-4 mm-box--display-inline-flex mm-box--justify-content-center mm-box--align-items-center mm-box--color-icon-inverse mm-box--background-color-icon-default mm-box--rounded-xl"
+                                type="button"
+                                data-action="login"
+                                aria-label="Login or register">
+                          登录 / 注册
+                        </button>
+                      </div>
+
+                      <div class="mm-box pm-unlock-stack__footer">
+                        <span class="pm-legal">
+                          By signing up, you agree to the
+                          <a href="/terms" class="pm-legal__link" target="_blank" rel="noreferrer">Terms and Conditions</a>
+                          and
+                          <a href="/privacy" class="pm-legal__link" target="_blank" rel="noreferrer">Privacy Policy</a>
+                        </span>
+                      </div>
+                    </div>
+                  </form>
+
+                  <div class="riv-animation__fox-container" aria-hidden="true">
+                    <div class="riv-animation__canvas">
+                      <canvas width="400" height="300" style="vertical-align: top; width: 400px; height: 300px;"></canvas>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 已登录页：沿用 popup.html 的 U-1（最小改动：加 data-action=logout） -->
+        <div class="screen screen--in" data-screen="logged-in" hidden>
+          <div class="pm-settings-page">
+            
+            <!-- 顶部 Hero：侧边面板入口 -->
+            <div class="pm-hero-section">
+              <div class="pm-hero-text">
+                <h2>侧边挤压面板</h2>
+                <p>开启扩展的侧边控制体验</p>
+              </div>
+              <button class="pm-hero-btn" data-action="open-panel" aria-label="开启侧边面板">
+                <i class="fas fa-arrow-right"></i>
+              </button>
+            </div>
+
+            <!-- 中间：功能设置 -->
+            <div class="pm-section-title">功能设置</div>
+            <div class="pm-setting-group">
+              <div class="pm-setting-row">
+                <div>
+                  <span class="pm-label-main">悬浮按钮 (FAB)</span>
+                  <span class="pm-label-sub">显示页面右下角快捷入口</span>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked class="sr-only peer toggle-checkbox" data-fab-toggle>
+                  <div class="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:bg-blue-600 toggle-label transition-colors">
+                    <div class="toggle-ball w-5 h-5 bg-white rounded-full shadow transform transition-transform translate-x-0.5 translate-y-0.5"></div>
+                  </div>
+                </label>
+              </div>
+              
+              <div class="pm-setting-row" style="flex-direction: column; align-items: stretch; gap: 12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <span class="pm-label-main" style="font-size:14px;">透明度</span>
+                  <span class="pm-label-sub" style="color:#2563eb; font-weight:600;" data-fab-value>80%</span>
+                </div>
+                <input type="range" min="20" max="100" step="5" value="80" class="fab-slider" data-fab-slider style="width:100%; height:6px; background:#e2e8f0; border-radius:3px; outline:none;">
+              </div>
+            </div>
+
+            <!-- 底部：账户与额度 -->
+            <div class="pm-section-title">账户与额度</div>
+            <div class="pm-setting-group" style="border-bottom:none;">
+              <div class="pm-user-card">
+                <div class="pm-avatar"><i class="fas fa-user"></i></div>
+                <div class="pm-user-info">
+                  <h3>johndoe</h3>
+                  <p>user@example.com • 2024 加入</p>
+                </div>
+              </div>
+              
+              <div class="pm-usage-bar-container">
+                <div class="pm-usage-labels">
+                  <span>Prompt 存储额度</span>
+                  <span style="color:#2563eb;">24 / 100</span>
+                </div>
+                <div class="pm-usage-track">
+                  <div class="pm-usage-fill" style="width: 24%;"></div>
+                </div>
+                <div style="margin-top:6px; font-size:12px; color:#94a3b8; text-align:right;">
+                  剩余可存储 76 个
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const screenOut = document.querySelector('[data-screen="logged-out"]');
+      const screenIn = document.querySelector('[data-screen="logged-in"]');
+
+      const show = (name) => {
+        const isLoggedIn = name === 'logged-in';
+        if (screenOut) {
+          screenOut.classList.toggle('is-active', !isLoggedIn);
+          screenOut.hidden = isLoggedIn;
+        }
+        if (screenIn) {
+          screenIn.classList.toggle('is-active', isLoggedIn);
+          screenIn.hidden = !isLoggedIn;
+        }
+      };
+
+      const loginBtn = document.querySelector('[data-action="login"]');
+      const logoutBtn = document.querySelector('[data-action="logout"]');
+
+      if (loginBtn) {
+        loginBtn.addEventListener('click', () => {
+          show('logged-in');
+        });
+      }
+
+      if (logoutBtn) {
+        logoutBtn.addEventListener('click', () => {
+          show('logged-out');
+        });
+      }
+
+      // 语言切换：仿 shadcn/radix dropdown 的最小实现
+      const langRoot = document.querySelector('[data-lang-root]');
+      if (langRoot) {
+        const trigger = langRoot.querySelector('[data-lang-trigger]');
+        const menu = langRoot.querySelector('[data-lang-menu]');
+        const current = langRoot.querySelector('[data-lang-current]');
+        const items = Array.from(langRoot.querySelectorAll('[data-lang-value]'));
+
+        const closeMenu = () => {
+          if (menu && !menu.hidden) {
+            menu.hidden = true;
+            trigger?.setAttribute('aria-expanded', 'false');
+          }
+        };
+        const openMenu = () => {
+          if (menu && menu.hidden) {
+            menu.hidden = false;
+            trigger?.setAttribute('aria-expanded', 'true');
+          }
+        };
+        const toggleMenu = () => {
+          if (!menu) return;
+          if (menu.hidden) openMenu(); else closeMenu();
+        };
+
+        trigger?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          toggleMenu();
+        });
+
+        items.forEach((item) => {
+          item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const flag = item.getAttribute('data-lang-flag') || '';
+            const label = item.textContent?.trim() || '';
+            if (current) current.textContent = flag || label;
+            closeMenu();
+          });
+        });
+
+        document.addEventListener('click', (e) => {
+          if (!langRoot.contains(e.target)) closeMenu();
+        });
+        document.addEventListener('keydown', (e) => {
+          if (e.key === 'Escape') closeMenu();
+        });
+      }
+
+      // 已登录页：FAB 开关 + 透明度滑杆（前端状态）
+      const fabToggle = document.querySelector('[data-fab-toggle]');
+      const fabSlider = document.querySelector('[data-fab-slider]');
+      const fabValue = document.querySelector('[data-fab-value]');
+
+      const syncFabState = () => {
+        if (!fabToggle || !fabSlider || !fabValue) return;
+        const enabled = fabToggle.checked;
+        fabSlider.disabled = !enabled;
+        fabSlider.style.opacity = enabled ? '1' : '0.55';
+        fabValue.textContent = `${fabSlider.value}%`;
+      };
+
+      fabToggle?.addEventListener('change', syncFabState);
+      fabSlider?.addEventListener('input', syncFabState);
+      syncFabState();
+
+      // 已登录页：侧边挤压面板按钮（原型占位）
+      const panelBtn = document.querySelector('[data-action="open-panel"]');
+      if (panelBtn) {
+        panelBtn.addEventListener('click', () => {
+          panelBtn.textContent = '已请求打开';
+          panelBtn.disabled = true;
+          setTimeout(() => {
+            panelBtn.textContent = '开启';
+            panelBtn.disabled = false;
+          }, 1500);
+        });
+      }
+    })();
+  </script>
+</body>
+</html>
+
